@@ -91,9 +91,13 @@ aldau/
 - Tests must not call the real API — mock the Anthropic client.
 
 ## Commands
-- Install: `pip install -e ".[dev]"`
+- Install: `pip install -e ".[dev]"` (add groups as phases need them: `llm`, `ml`, `photos`, `bot`,
+  e.g. `pip install -e ".[dev,llm]"`). Use a local virtualenv in `.venv/` (gitignored).
 - Tests: `pytest -q`
 - Lint: `ruff check src tests`
+- On the owner's Windows laptop, Application Control blocks the `pytest.exe` launcher in `.venv`;
+  run tools through the interpreter instead: `.venv\Scripts\python.exe -m pytest -q` and
+  `.venv\Scripts\python.exe -m ruff check src tests`.
 
 ## Git
 Small commits with clear messages, one logical change each. Commit at the end of every phase.
@@ -111,3 +115,7 @@ Small commits with clear messages, one logical change each. Commit at the end of
 | Date | Work | Status |
 |------|------|--------|
 | 2026-11-15 | Handoff files (CLAUDE.md, START.md, docs/PLAN.md) placed in repo, git initialised, public GitHub repo `dinistina/aldau` created | done |
+| 2026-11-15 | Phase 0 — skeleton: `pyproject.toml` (heavy deps in optional groups `llm`/`ml`/`photos`/`bot`), `schema.py` (pydantic `Ad`, `TeacherLabel`), tests, GitHub Actions CI, README stub, `.env.example`, `docs/LEARNING_LOG.md` | done |
+
+Next: Phase 1 — data tools (`collect.py`, `features.mask_pii`). The owner collects and labels the
+data himself; stop after the tools are ready.

@@ -1,0 +1,28 @@
+# Secrets
+.env
+
+# Data and models never go to git (move them between laptops manually).
+# Only the folder structure (.gitkeep files) is tracked.
+data/**
+!data/**/
+!data/**/.gitkeep
+models/
+reports/*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
