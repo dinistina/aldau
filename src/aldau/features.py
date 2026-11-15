@@ -68,6 +68,13 @@ COMMON_NAMES = [
 COMMON_NAME_RE = re.compile(r"\b(?:" + "|".join(COMMON_NAMES) + r")(?:а|у|ы|е|ом|ой|я|ю)?\b")
 
 KAZAKH_LETTERS = set("әғқңөұүһі")
+# Many people type Kazakh on a Russian keyboard, without the special letters
+# ("жаксы" instead of "жақсы"). These frequent ad words catch such texts.
+KAZAKH_WORDS = {
+    "сатылады", "сатамын", "сатам", "жаксы", "жагдайы", "бериледи", "беремин", "берем",
+    "жалга", "болме", "болмели", "жок", "керемет", "багасы", "келисим", "арзан", "жумыс",
+    "уй", "ушин", "барлык", "барлыгы", "бари", "жасап", "жасайды", "озим", "касында", "емес",
+}  # fmt: skip
 
 
 def mask_pii(text: str) -> str:
@@ -87,11 +94,16 @@ def mask_pii(text: str) -> str:
 
 
 def detect_lang(text: str) -> str:
-    """Return "kk" if the text has Kazakh-only letters, otherwise "ru".
+    """Return "kk" if the text looks Kazakh, otherwise "ru".
 
     Russian and Kazakh share the Cyrillic alphabet, but Kazakh has 9 extra letters
     (ә ғ қ ң ө ұ ү һ і). One such letter is enough to call the text Kazakh.
+    If there are none, we look for frequent Kazakh words typed with Russian letters.
+    A mixed ad (Kazakh + Russian) counts as Kazakh.
     """
-    if KAZAKH_LETTERS & set(text.lower()):
+    text = text.lower()
+    if KAZAKH_LETTERS & set(text):
+        return "kk"
+    if KAZAKH_WORDS & set(re.findall(r"\w+", text)):
         return "kk"
     return "ru"

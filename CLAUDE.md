@@ -118,6 +118,11 @@ Small commits with clear messages, one logical change each. Commit at the end of
 | 2026-11-15 | Phase 0 — skeleton: `pyproject.toml` (heavy deps in optional groups `llm`/`ml`/`photos`/`bot`), `schema.py` (pydantic `Ad`, `TeacherLabel`), tests, GitHub Actions CI, README stub, `.env.example`, `docs/LEARNING_LOG.md` | done |
 
 | 2026-11-15 | Phase 1 (tools only) — `features.py` (`mask_pii`, `detect_lang`), `collect.py` CLI (`add`, `gold`, `stats`), tests, `docs/DATA_GUIDE.md`; CI actions bumped to checkout@v5 / setup-python@v6 | tools done, **waiting for the owner's data** |
+| 2026-11-15 | Phase 1 addition — batch import `python -m aldau.collect import <file> [--dry-run]` (inbox format: `source \| category \| price \| city \| label \| origin`, ads separated by `---`); `Ad.origin` field (`real` / `case_based` / `synthetic`); `detect_lang` also recognises Kazakh typed without special letters. First import: 146 ads in `data/raw/ads.jsonl` (95 legit real, 45 scam case_based, 5 unknown, +1 earlier test ad) | done |
 
-Next: the owner collects 200–300 ads and hand-labels 100 into the gold set (see
-`docs/DATA_GUIDE.md`). Do not start Phase 2 until he says the data is ready.
+Open data issue (raised with the owner 2026-11-15): every scam ad so far is `case_based` and every
+legit ad is `real`, so label is confounded with writing style; category `запчасти` exists only in
+scam. Needs real suspicious ads and clean-written legit ads before the gold set is labelled.
+
+Next: the owner keeps collecting (target 200–300 ads) and hand-labels 100 into the gold set (see
+`docs/DATA_GUIDE.md`). **Do not start Phase 2 until the owner explicitly says to start it.**

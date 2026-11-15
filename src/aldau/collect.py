@@ -3,6 +3,8 @@
 Usage (run from the project root):
     python -m aldau.collect add                  # add one ad, typing/pasting the text
     python -m aldau.collect add --text-file a.txt  # ... or read the ad text from a UTF-8 file
+    python -m aldau.collect import data/inbox.txt  # add many ads at once (see "batch import")
+    python -m aldau.collect import data/inbox.txt --dry-run   # only check, save nothing
     python -m aldau.collect gold                 # label ads by hand into the gold set
     python -m aldau.collect stats                # how many ads are collected / labelled
 
@@ -19,6 +21,7 @@ import hashlib
 import random
 from collections import Counter
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from aldau.features import detect_lang, mask_pii
@@ -28,6 +31,8 @@ RAW_PATH = Path("data/raw/ads.jsonl")
 GOLD_PATH = Path("data/gold/gold.jsonl")
 GOLD_TARGET = 100
 SOURCES = ["olx", "kolesa", "krisha"]
+LABELS = ["scam", "legit", "unknown"]
+ORIGINS = ["real", "case_based", "synthetic"]
 
 
 # --- reading and writing JSONL ------------------------------------------------
@@ -68,6 +73,7 @@ def build_ad(
     price_kzt: int | None = None,
     city: str | None = None,
     label: str = "unknown",
+    origin: str = "real",
 ) -> Ad:
     """Mask PII and build an Ad. Nothing is saved here."""
     title = mask_pii(title.strip())
@@ -82,6 +88,7 @@ def build_ad(
         city=city.strip() if city else None,
         lang=detect_lang(title + " " + text),
         label=label,
+        origin=origin,
     )
 
 
@@ -91,6 +98,120 @@ def save_new_ad(ad: Ad, raw_path: Path = RAW_PATH) -> bool:
         return False
     append_ad(raw_path, ad)
     return True
+
+
+# --- batch import from an inbox file ------------------------------------------
+#
+# Inbox format: ads separated by a line "---". Each ad is
+#     source | category | price | city | label | origin      <- header
+#     Title                                                    <- first line after it
+#     Text, any number of lines...
+# Price, city, label and origin may be left empty (label -> unknown, origin -> real).
+
+
+@dataclass
+class ImportReport:
+    """What happened during one import run."""
+
+    added: list[Ad] = field(default_factory=list)
+    masked: list[str] = field(default_factory=list)  # titles of ads where PII was masked
+    duplicates: list[str] = field(default_factory=list)  # human-readable messages
+    errors: list[str] = field(default_factory=list)  # human-readable messages
+
+
+def split_inbox(text: str) -> list[tuple[int, list[str]]]:
+    """Cut the inbox into blocks. Returns (line number of the header, lines of the block)."""
+    blocks = []
+    current: list[str] = []
+    start = 0
+    for number, line in enumerate(text.splitlines(), start=1):
+        if line.strip() == "---":
+            if current:
+                blocks.append((start, current))
+            current = []
+        elif line.strip() or current:  # skip blank lines before the header
+            if not current:
+                start = number
+            current.append(line)
+    if current:
+        blocks.append((start, current))
+    return blocks
+
+
+def parse_block(lines: list[str]) -> Ad:
+    """Turn one inbox block into an Ad. Raises ValueError with a readable message."""
+    parts = [part.strip() for part in lines[0].split("|")]
+    if len(parts) != 6:
+        raise ValueError(
+            f"в шапке должно быть 6 полей через |, а найдено {len(parts)}: {lines[0]!r}"
+        )
+    source, category, price_raw, city, label, origin = parts
+    source, label, origin = source.lower(), label.lower() or "unknown", origin.lower() or "real"
+
+    if source not in SOURCES:
+        raise ValueError(f"источник {source!r} — нужно одно из {SOURCES}")
+    if not category:
+        raise ValueError("не указана категория")
+    if label not in LABELS:
+        raise ValueError(f"метка {label!r} — нужно одно из {LABELS}")
+    if origin not in ORIGINS:
+        raise ValueError(f"origin {origin!r} — нужно одно из {ORIGINS}")
+    price_digits = price_raw.replace(" ", "")
+    if price_digits and not price_digits.isdigit():
+        raise ValueError(f"цена {price_raw!r} — нужно число или пусто")
+
+    body = "\n".join(lines[1:]).strip()
+    if not body:
+        raise ValueError("после шапки нет текста объявления")
+    # First line is the title, the rest is the text. A one-line ad uses the title as its text.
+    title, _, rest = body.partition("\n")
+    text = rest.strip() or title
+
+    return build_ad(
+        source=source,
+        category=category,
+        title=title,
+        text=text,
+        price_kzt=int(price_digits) if price_digits else None,
+        city=city or None,
+        label=label,
+        origin=origin,
+    )
+
+
+def import_inbox(
+    inbox_path: Path, raw_path: Path = RAW_PATH, dry_run: bool = False
+) -> ImportReport:
+    """Add every valid ad from the inbox file to the raw file.
+
+    Bad ads are reported and skipped; they never stop the import.
+    With dry_run=True nothing is written — only the report is produced.
+    """
+    report = ImportReport()
+    # utf-8-sig also accepts files that Windows Notepad saved with a BOM mark
+    text = inbox_path.read_text(encoding="utf-8-sig")
+    known_ids = {ad.id for ad in read_ads(raw_path)}
+
+    for number, (line_no, lines) in enumerate(split_inbox(text), start=1):
+        where = f"№{number} (строка {line_no})"
+        try:
+            ad = parse_block(lines)
+        except ValueError as error:
+            report.errors.append(f"{where}: {error}")
+            continue
+        if ad.id in known_ids:
+            report.duplicates.append(f"{where}: {ad.title[:60]}")
+            continue
+        known_ids.add(ad.id)
+
+        raw_body = "\n".join(lines[1:])
+        if mask_pii(raw_body) != raw_body:
+            report.masked.append(f"{where}: {ad.title[:60]}")
+        if not dry_run:
+            append_ad(raw_path, ad)
+        report.added.append(ad)
+
+    return report
 
 
 # --- labelling the gold set ---------------------------------------------------
@@ -200,6 +321,31 @@ def cmd_add(args: argparse.Namespace) -> None:
         print("Такое объявление уже есть — пропущено.")
 
 
+def cmd_import(args: argparse.Namespace) -> None:
+    report = import_inbox(Path(args.inbox), dry_run=args.dry_run)
+    added = report.added
+
+    print("ПРОВЕРКА (ничего не сохранено)" if args.dry_run else "ИМПОРТ ЗАВЕРШЁН")
+    print(f"Добавлено: {len(added)}")
+    print(f"  по меткам:     {dict(Counter(ad.label for ad in added))}")
+    print(f"  по origin:     {dict(Counter(ad.origin for ad in added))}")
+    print(f"  по языку:      {dict(Counter(ad.lang for ad in added))}")
+    print(f"  по источникам: {dict(Counter(ad.source for ad in added))}")
+    print(f"  по категориям: {dict(Counter(ad.category for ad in added))}")
+
+    print(f"\nЗамаскированы личные данные в {len(report.masked)} объявлениях:")
+    for line in report.masked:
+        print(f"  {line}")
+    print(f"\nДубликаты (пропущены): {len(report.duplicates)}")
+    for line in report.duplicates:
+        print(f"  {line}")
+    print(f"\nНе прошли проверку: {len(report.errors)}")
+    for line in report.errors:
+        print(f"  {line}")
+    if not args.dry_run:
+        print(f"\nВсего в {RAW_PATH}: {len(read_ads(RAW_PATH))}")
+
+
 def cmd_gold(args: argparse.Namespace) -> None:
     count = label_gold(target=args.target)
     print(f"\nРазмечено сейчас: {count}. Всего в gold: {len(read_ads(GOLD_PATH))}")
@@ -223,6 +369,11 @@ def main() -> None:
     p_add = sub.add_parser("add", help="add one ad to data/raw/ads.jsonl")
     p_add.add_argument("--text-file", help="read the ad text from this UTF-8 file")
     p_add.set_defaults(func=cmd_add)
+
+    p_import = sub.add_parser("import", help="add many ads at once from an inbox file")
+    p_import.add_argument("inbox", help="path to the inbox file, e.g. data/inbox.txt")
+    p_import.add_argument("--dry-run", action="store_true", help="check only, save nothing")
+    p_import.set_defaults(func=cmd_import)
 
     p_gold = sub.add_parser("gold", help="label ads by hand into data/gold/gold.jsonl")
     p_gold.add_argument("--target", type=int, default=GOLD_TARGET, help="gold set size")

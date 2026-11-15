@@ -86,3 +86,9 @@ def test_detect_lang():
     assert detect_lang("Продам квартиру в центре") == "ru"
     assert detect_lang("Пәтер жалға беріледі") == "kk"
     assert detect_lang("ҚАЛА ОРТАЛЫҒЫ") == "kk"  # upper case works too
+
+
+def test_detect_lang_kazakh_typed_on_russian_keyboard():
+    # no special Kazakh letters at all, but the words are Kazakh
+    assert detect_lang("Ноутбук сатылады, жагдайы жаксы") == "kk"
+    assert detect_lang("Квартира жалга бериледи") == "kk"
