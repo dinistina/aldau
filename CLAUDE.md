@@ -88,7 +88,7 @@ aldau/
   synthetic generation. Do not write crawlers.
 - The bot is advisory: every answer ends with a short disclaimer that the result is a probability,
   not a verdict.
-- Tests must not call the real API — mock the Anthropic client.
+- Tests must not call the real API — mock `llm.py` (any provider client).
 
 ## Commands
 - Install: `pip install -e ".[dev]"` (add groups as phases need them: `llm`, `ml`, `photos`, `bot`,
@@ -117,5 +117,7 @@ Small commits with clear messages, one logical change each. Commit at the end of
 | 2026-11-15 | Handoff files (CLAUDE.md, START.md, docs/PLAN.md) placed in repo, git initialised, public GitHub repo `dinistina/aldau` created | done |
 | 2026-11-15 | Phase 0 — skeleton: `pyproject.toml` (heavy deps in optional groups `llm`/`ml`/`photos`/`bot`), `schema.py` (pydantic `Ad`, `TeacherLabel`), tests, GitHub Actions CI, README stub, `.env.example`, `docs/LEARNING_LOG.md` | done |
 
-Next: Phase 1 — data tools (`collect.py`, `features.mask_pii`). The owner collects and labels the
-data himself; stop after the tools are ready.
+| 2026-11-15 | Phase 1 (tools only) — `features.py` (`mask_pii`, `detect_lang`), `collect.py` CLI (`add`, `gold`, `stats`), tests, `docs/DATA_GUIDE.md`; CI actions bumped to checkout@v5 / setup-python@v6 | tools done, **waiting for the owner's data** |
+
+Next: the owner collects 200–300 ads and hand-labels 100 into the gold set (see
+`docs/DATA_GUIDE.md`). Do not start Phase 2 until he says the data is ready.
