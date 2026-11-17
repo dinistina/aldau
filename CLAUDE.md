@@ -101,13 +101,21 @@ aldau/
 - This limitation is also stated in `README.md`.
 
 ## Commands
-- Install: `pip install -e ".[dev]"` (add groups as phases need them: `llm`, `ml`, `photos`, `bot`,
-  e.g. `pip install -e ".[dev,llm]"`). Use a local virtualenv in `.venv/` (gitignored).
+- Install: `pip install -e ".[dev,photos]"` (add groups as phases need them: `llm`, `ml`
+  (scikit-learn, matplotlib, pandas), `deep` (torch, transformers, datasets), `bot`).
+  Use a local virtualenv in `.venv/` (gitignored).
+- EDA report: `python -m aldau.eda` -> `reports/eda.md` (aggregates only, no ad texts; committed).
 - Tests: `pytest -q`
 - Lint: `ruff check src tests`
 - On the owner's Windows laptop, Application Control blocks the `pytest.exe` launcher in `.venv`;
   run tools through the interpreter instead: `.venv\Scripts\python.exe -m pytest -q` and
   `.venv\Scripts\python.exe -m ruff check src tests`.
+- The same policy (Windows Smart App Control / Application Control) blocks a DLL inside numpy
+  (`numpy.random._generator`), so numpy, scipy, scikit-learn, matplotlib and imagehash do not run
+  on that laptop (found 2026-11-17). Do not try to bypass the policy; it is the owner's security
+  setting. Phase 2 code is numpy-free on purpose (own pHash on Pillow, own ROC-AUC). Phases that
+  need numpy (5: training) must run in CI, Google Colab, the other laptop, or after the owner
+  decides about the policy himself — ask him before starting Phase 5.
 
 ## Git
 Small commits with clear messages, one logical change each. Commit at the end of every phase.
@@ -126,16 +134,18 @@ Small commits with clear messages, one logical change each. Commit at the end of
 |------|------|--------|
 | 2026-11-15 | Handoff files (CLAUDE.md, START.md, docs/PLAN.md) placed in repo, git initialised, public GitHub repo `dinistina/aldau` created | done |
 | 2026-11-15 | Phase 0 — skeleton: `pyproject.toml` (heavy deps in optional groups `llm`/`ml`/`photos`/`bot`), `schema.py` (pydantic `Ad`, `TeacherLabel`), tests, GitHub Actions CI, README stub, `.env.example`, `docs/LEARNING_LOG.md` | done |
-
 | 2026-11-15 | Phase 1 (tools only) — `features.py` (`mask_pii`, `detect_lang`), `collect.py` CLI (`add`, `gold`, `stats`), tests, `docs/DATA_GUIDE.md`; CI actions bumped to checkout@v5 / setup-python@v6 | tools done, **waiting for the owner's data** |
 | 2026-11-15 | Phase 1 addition — batch import `python -m aldau.collect import <file> [--dry-run]` (inbox format: `source \| category \| price \| city \| label \| origin`, ads separated by `---`); `Ad.origin` field (`real` / `case_based` / `synthetic`); `detect_lang` also recognises Kazakh typed without special letters. First import: 146 ads in `data/raw/ads.jsonl` (95 legit real, 45 scam case_based, 5 unknown, +1 earlier test ad) | done |
 
 | 2026-11-17 | Data quality tools — `stats` shows category/origin/lang × label tables; `import` warns when header price disagrees with the text (>10 %) and updates stored ads whose header changed; new `collect check-prices`; optional 7th header field `source_note`; gold never offers synthetic ads. Owner decisions recorded: case_based allowed in gold (see "Known limitation"), metrics split by origin, category check added to Phase 2 and style-leak check to Phase 6 in `docs/PLAN.md` | done |
+| 2026-11-17 | Header prices fixed on the owner's instruction (HP 255 G7 -> 70 000, MacBook -> 350 000, Темиртау flat -> 10 500 000); `data/price_ok.txt` list of checked mismatches (LG washer: bargaining, not an error); new category `посуточная аренда` (7 daily-rent scam ads moved); `import --verbose` lists duplicates | done |
+| 2026-11-17 | Phase 2 — 13 regex fraud signals ru + kk (`features.SIGNAL_PATTERNS`, `find_signals`), `PriceReference` (median price by category/city, label-free) and `extract_features`; `photos.py` (hand-written pHash on Pillow, duplicate search); `eda.py` -> `reports/eda.md` (signal rates, price ratio, single-field ROC-AUC with stratified 5-fold CV). Dependency groups split into `ml` / `deep`; `photos` = Pillow only. Started on the owner's go-ahead on current data (146 ads) | done |
 
-Open data issues (owner is collecting more, 2026-11-17): label is confounded with origin/style
-(all scam `case_based`, all legit `real`); `запчасти` is 100 % scam and `одежда` 0 %; all daily
-rentals (посуточно) are scam. 3 header prices disagree with the text (owner fixes by hand).
-Gold labelling is postponed until more data is collected.
+Data findings (2026-11-17, `reports/eda.md`): origin predicts the label perfectly (ROC-AUC 1.00);
+category 0.78 (`запчасти`, `посуточная аренда` 100 % scam, `одежда` 0 %); city 0.72; signal count
+0.98 but confounded with origin (rewritten cases name the scheme explicitly); price ratio 0.48
+(no signal yet). No photos collected. The owner is collecting more data in parallel (honest
+booking/deposit ads, legit parts, real scam texts); gold labelling is postponed.
 
-Next: the owner keeps collecting (target 200–300 ads) and hand-labels 100 into the gold set (see
-`docs/DATA_GUIDE.md`). **Do not start Phase 2 until the owner explicitly says to start it.**
+Next: Phase 3 (teacher, `llm.py`) — show the plan and wait for the owner's "ok". It calls the API:
+state the number of requests and wait for confirmation before any run.

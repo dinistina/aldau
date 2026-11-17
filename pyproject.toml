@@ -18,8 +18,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 llm = ["anthropic", "google-genai", "openai"]
-ml = ["pandas", "scikit-learn", "transformers", "torch", "datasets"]
-photos = ["imagehash", "Pillow"]
+# ml = light classic ML (baseline, EDA); deep = neural networks (Phase 5 student)
+ml = ["scikit-learn", "matplotlib", "pandas"]
+deep = ["transformers", "torch", "datasets"]
+# pHash is implemented by hand (photos.py), so only Pillow is needed
+photos = ["Pillow"]
 bot = ["aiogram>=3.0"]
 
 [tool.setuptools.packages.find]
