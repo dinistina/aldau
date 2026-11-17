@@ -22,6 +22,22 @@ ruff check src tests
 pytest -q
 ```
 
+## Data and known limitations
+
+Ads are collected by hand (no scraping) and personal data is masked before storage. Each ad
+records its origin: `real` (copied from a marketplace or a victim's screenshot), `case_based`
+(a scam scheme rewritten by hand from news, complaints or safety memos) or `synthetic`
+(LLM-generated, training only).
+
+- **The test set includes `case_based` scam ads.** Real scam ads are rare and get removed quickly,
+  so part of the scam examples in the human-labelled gold set are rewritten cases. Rewritten text
+  can differ in style from real ads, which may make detection look easier than it is. Every
+  reported metric is therefore given separately for `real` and `case_based` ads, and the
+  benchmark includes a style-leak check (how well a simple classifier predicts the origin of an
+  ad from its text alone).
+- The dataset is small (a few hundred hand-collected ads) and not a random sample of any
+  marketplace.
+
 ## Disclaimer
 
 The output is a probability, not a verdict. No personal data of sellers is stored and the project

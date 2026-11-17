@@ -41,6 +41,8 @@ class Ad(BaseModel):
     lang: Lang = "ru"
     label: AdLabel = "unknown"  # human label; "unknown" until someone labels it
     origin: Origin = "real"
+    # Where exactly the text was found, e.g. "tg-канал, скриншот жертвы". No personal data.
+    source_note: str | None = None
 
 
 class TeacherLabel(BaseModel):

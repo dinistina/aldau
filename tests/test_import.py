@@ -49,6 +49,14 @@ def test_parse_block_empty_fields_get_defaults():
     assert (ad.label, ad.origin, ad.lang) == ("unknown", "real", "kk")
 
 
+def test_parse_block_optional_seventh_field_is_source_note():
+    ad = parse_block(
+        ["olx | аренда квартир | 90000 | Алматы | scam | real | tg-канал, скриншот", "Сдам", "..."]
+    )
+    assert ad.source_note == "tg-канал, скриншот"
+    assert parse_block(["olx | мебель | 5000 | Тараз | legit | real", "Стул"]).source_note is None
+
+
 def test_parse_block_one_line_ad_uses_title_as_text():
     ad = parse_block(["olx | мебель | 5000 | Тараз | legit | real", "Продам стул"])
     assert ad.title == ad.text == "Продам стул"

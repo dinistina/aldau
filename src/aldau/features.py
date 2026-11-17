@@ -93,6 +93,72 @@ def mask_pii(text: str) -> str:
     return text
 
 
+# --- Prices written in the ad text -------------------------------------------
+# A number such as "25.000", "8 500 000", "9.5", optionally followed by a multiplier
+# ("тыс", "мың", "млн", or "к" glued to the number: "340к") and a currency ("тг", "₸").
+NUMBER = r"\d{1,3}(?:[ . ]\d{3})+|\d+(?:[.,]\d+)?"
+AMOUNT_RE = re.compile(
+    # not glued to a letter, digit or dash: "215-51K" is a model name, not 51 000 tenge
+    rf"(?<![\w.,\-])({NUMBER})"
+    r"(?:\s?(млн\w*|миллион\w*|тыс\w*|мың\w*|мын\w*)|([кk])(?!\w))?"
+    r"\s?(тг|тенге|теңге|₸|tg|kzt)?",
+    re.IGNORECASE,
+)
+# A bare number counts as a price only right after one of these words.
+PRICE_WORDS_RE = re.compile(
+    r"(цена|цены|бағасы|баға|стоимость|окончательно|отдам за|отдаю за)\W*$", re.IGNORECASE
+)
+# Amounts near these words are something else: a deposit, the old price, a discount...
+NOT_PRICE_WORDS_RE = re.compile(
+    r"задат|депозит|предоплат|брон|залог|взнос|аванс|покупал|стоит|рассроч|доплат|скидк"
+    r"|таможен|утильсбор|арзан|дешевле|ниже",
+    re.IGNORECASE,
+)
+
+
+def parse_number(raw: str) -> float:
+    """'25.000' -> 25000, '8 500 000' -> 8500000, '9.5' -> 9.5"""
+    raw = raw.replace(" ", " ")
+    if re.fullmatch(r"\d{1,3}(?:[ .]\d{3})+", raw):  # dots/spaces separate thousands
+        return float(raw.replace(" ", "").replace(".", ""))
+    return float(raw.replace(",", "."))
+
+
+def extract_prices(text: str) -> list[int]:
+    """Amounts in tenge that look like the asking price.
+
+    A number counts if it has a currency or a multiplier ("25 000 тг", "340к",
+    "120 мың"), or follows a price word ("цена 60000"). Numbers next to deposit /
+    old-price words are skipped. This is a heuristic for warnings, not a parser.
+    """
+    prices = []
+    for match in AMOUNT_RE.finditer(text):
+        number, big_unit, k_unit, currency = match.groups()
+        before = text[max(0, match.start() - 30) : match.start()]
+        after = text[match.end() : match.end() + 15]
+        if not (big_unit or k_unit or currency or PRICE_WORDS_RE.search(before)):
+            continue
+        if NOT_PRICE_WORDS_RE.search(before) or NOT_PRICE_WORDS_RE.search(after):
+            continue
+        value = parse_number(number)
+        if k_unit:
+            if value < 10:  # "2к" usually means a 2-room flat, not 2000 tenge
+                continue
+            value *= 1000
+        elif big_unit and big_unit.lower().startswith(("млн", "миллион")):
+            if value < 1000:  # "20 млн"; but "20 000 000 млн" is already in tenge
+                value *= 1_000_000
+        elif big_unit and value < 1000:  # "120 мың" = 120 000; "180 000 мың" is already full
+            value *= 1000
+        prices.append(int(value))
+    return prices
+
+
+def all_numbers(text: str) -> set[int]:
+    """Every number in the text, thousands separators removed."""
+    return {int(parse_number(raw)) for raw in re.findall(NUMBER, text)}
+
+
 def detect_lang(text: str) -> str:
     """Return "kk" if the text looks Kazakh, otherwise "ru".
 

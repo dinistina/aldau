@@ -1,6 +1,7 @@
 from aldau.collect import (
     append_ad,
     build_ad,
+    crosstab,
     label_gold,
     make_ad_id,
     pick_unlabelled,
@@ -70,6 +71,21 @@ def test_pick_unlabelled_skips_gold_and_is_stable():
     todo = pick_unlabelled(ads, gold)
     assert {ad.id for ad in todo} == {ad.id for ad in ads[3:]}
     assert todo == pick_unlabelled(ads, gold)  # same order on every run
+
+
+def test_pick_unlabelled_never_offers_synthetic_ads():
+    real = make_ad(1)
+    case = make_ad(2, origin="case_based")
+    synthetic = make_ad(3, origin="synthetic")
+    todo = pick_unlabelled([real, case, synthetic], [])
+    assert {ad.id for ad in todo} == {real.id, case.id}
+
+
+def test_crosstab_counts_labels_per_category():
+    ads = [make_ad(1, label="scam"), make_ad(2, label="legit"), make_ad(3, category="авто")]
+    table = crosstab(ads, "category", "категория").splitlines()
+    assert table[1].split() == ["авто", "0", "0", "1", "1", "-"]
+    assert table[2].split() == ["телефоны", "1", "1", "0", "2", "50%"]
 
 
 def test_label_gold_saves_answers_and_stops_on_q(tmp_path):
