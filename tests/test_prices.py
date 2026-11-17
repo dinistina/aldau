@@ -1,6 +1,14 @@
 import pytest
 
-from aldau.collect import build_ad, import_inbox, price_mismatch, read_ads
+from aldau.collect import (
+    build_ad,
+    find_price_problems,
+    import_inbox,
+    make_ad_id,
+    price_mismatch,
+    read_ads,
+    read_price_ok,
+)
 from aldau.features import extract_prices
 
 
@@ -90,6 +98,28 @@ def test_reimport_with_fixed_price_updates_stored_ad(tmp_path):
     assert len(report.updated) == 1 and "price_kzt" in report.updated[0]
     assert len(report.duplicates) == 1  # the chair did not change
     assert [ad.price_kzt for ad in read_ads(raw)] == [25_000, 5000]  # order kept
+
+
+def test_read_price_ok_ignores_comments_and_blank_lines(tmp_path):
+    path = tmp_path / "price_ok.txt"
+    path.write_text("# header\n\nabc123   # LG: торг\n  def456\n", encoding="utf-8")
+    assert read_price_ok(path) == {"abc123", "def456"}
+    assert read_price_ok(tmp_path / "missing.txt") == set()
+
+
+def test_checked_ads_are_hidden_from_price_problems():
+    lg = make_ad("отдам за 25.000 окончательно", 30_000)
+    macbook = make_ad("Цена: 350 000 ₸", 315_000)
+    problems, hidden = find_price_problems([lg, macbook], price_ok={lg.id})
+    assert [ad.id for ad, _ in problems] == [macbook.id]
+    assert hidden == 1
+
+
+def test_import_skips_price_warning_for_checked_ad(tmp_path):
+    inbox = "olx | техника | 30000 | Шымкент | legit | real\nLG\nотдам за 25.000 окончательно\n"
+    lg_id = make_ad_id("LG", "отдам за 25.000 окончательно")
+    report = import_inbox(write(tmp_path, inbox), tmp_path / "ads.jsonl", price_ok={lg_id})
+    assert report.price_warnings == []
 
 
 def test_dry_run_does_not_update(tmp_path):

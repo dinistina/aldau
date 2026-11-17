@@ -30,6 +30,8 @@ from aldau.schema import Ad
 
 RAW_PATH = Path("data/raw/ads.jsonl")
 GOLD_PATH = Path("data/gold/gold.jsonl")
+# Ids of ads whose price mismatch was checked by a human and is fine (one id per line).
+PRICE_OK_PATH = Path("data/price_ok.txt")
 GOLD_TARGET = 100
 SOURCES = ["olx", "kolesa", "krisha"]
 LABELS = ["scam", "legit", "unknown"]
@@ -117,6 +119,22 @@ def save_new_ad(ad: Ad, raw_path: Path = RAW_PATH) -> bool:
         return False
     append_ad(raw_path, ad)
     return True
+
+
+def read_price_ok(path: Path = PRICE_OK_PATH) -> set[str]:
+    """Ids from the "price checked, all fine" list.
+
+    Format: one id per line; anything after # is a comment, blank lines are ignored:
+        30ab5c4883b9   # LG стиральная машина: 30 000 на сайте, 25 000 в тексте — торг
+    """
+    if not path.exists():
+        return set()
+    ids = set()
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        ad_id = line.split("#", 1)[0].strip()
+        if ad_id:
+            ids.add(ad_id)
+    return ids
 
 
 def price_mismatch(ad: Ad, tolerance: float = 0.10) -> str | None:
@@ -228,7 +246,10 @@ def parse_block(lines: list[str]) -> Ad:
 
 
 def import_inbox(
-    inbox_path: Path, raw_path: Path = RAW_PATH, dry_run: bool = False
+    inbox_path: Path,
+    raw_path: Path = RAW_PATH,
+    dry_run: bool = False,
+    price_ok: set[str] | None = None,
 ) -> ImportReport:
     """Add every valid ad from the inbox file to the raw file.
 
@@ -236,7 +257,10 @@ def import_inbox(
     An ad that is already stored (same text) but has a changed header — e.g. you
     fixed its price — replaces the stored version.
     With dry_run=True nothing is written — only the report is produced.
+    Price warnings are not shown for ids in `price_ok` (default: data/price_ok.txt).
     """
+    if price_ok is None:
+        price_ok = read_price_ok()
     report = ImportReport()
     # utf-8-sig also accepts files that Windows Notepad saved with a BOM mark
     text = inbox_path.read_text(encoding="utf-8-sig")
@@ -252,7 +276,7 @@ def import_inbox(
             report.errors.append(f"{where}: {error}")
             continue
 
-        warning = price_mismatch(ad)
+        warning = None if ad.id in price_ok else price_mismatch(ad)
         if warning:
             report.price_warnings.append(f"{where}: {ad.title[:50]} — {warning}")
 
@@ -412,9 +436,12 @@ def cmd_import(args: argparse.Namespace) -> None:
     print(f"\nЗамаскированы личные данные в {len(report.masked)} объявлениях:")
     for line in report.masked:
         print(f"  {line}")
-    print(f"\nДубликаты (пропущены): {len(report.duplicates)}")
-    for line in report.duplicates:
-        print(f"  {line}")
+    print(f"\nДубликаты (уже сохранены, пропущены): {len(report.duplicates)}")
+    if args.verbose:
+        for line in report.duplicates:
+            print(f"  {line}")
+    elif report.duplicates:
+        print("  (список: добавь --verbose)")
     print(f"\nНе прошли проверку: {len(report.errors)}")
     for line in report.errors:
         print(f"  {line}")
@@ -467,13 +494,30 @@ def cmd_stats(args: argparse.Namespace) -> None:
     print(f"  по origin: {dict(Counter(ad.origin for ad in gold))}")
 
 
+def find_price_problems(ads: list[Ad], price_ok: set[str]) -> tuple[list[tuple[Ad, str]], int]:
+    """Ads with a price mismatch, minus those marked as checked; also how many were hidden."""
+    problems, hidden = [], 0
+    for ad in ads:
+        warning = price_mismatch(ad)
+        if not warning:
+            continue
+        if ad.id in price_ok:
+            hidden += 1
+        else:
+            problems.append((ad, warning))
+    return problems, hidden
+
+
 def cmd_check_prices(args: argparse.Namespace) -> None:
-    problems = [(ad, price_mismatch(ad)) for ad in read_ads(RAW_PATH)]
-    problems = [(ad, warning) for ad, warning in problems if warning]
+    problems, hidden = find_price_problems(read_ads(RAW_PATH), read_price_ok())
     print(f"Цена в шапке расходится с текстом: {len(problems)}")
     for ad, warning in problems:
         print(f"  [{ad.id}] {ad.category} | {ad.city or '-'} | {ad.title[:50]}")
         print(f"      {warning}")
+    if hidden:
+        print(f"Скрыто как проверенные (в {PRICE_OK_PATH}): {hidden}")
+    if problems:
+        print(f"Если расхождение нормальное (например, торг), добавь id в {PRICE_OK_PATH}.")
 
 
 def main() -> None:
@@ -487,6 +531,7 @@ def main() -> None:
     p_import = sub.add_parser("import", help="add many ads at once from an inbox file")
     p_import.add_argument("inbox", help="path to the inbox file, e.g. data/inbox.txt")
     p_import.add_argument("--dry-run", action="store_true", help="check only, save nothing")
+    p_import.add_argument("--verbose", action="store_true", help="also list skipped duplicates")
     p_import.set_defaults(func=cmd_import)
 
     p_gold = sub.add_parser("gold", help="label ads by hand into data/gold/gold.jsonl")
