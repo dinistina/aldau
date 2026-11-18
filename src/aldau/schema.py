@@ -43,6 +43,9 @@ class Ad(BaseModel):
     origin: Origin = "real"
     # Where exactly the text was found, e.g. "tg-канал, скриншот жертвы". No personal data.
     source_note: str | None = None
+    # Set in gold labelling (key "t"): the label cannot be seen from the ad text alone,
+    # e.g. a scam that happened later in the chat. Reports show recall with and without them.
+    not_from_text: bool = False
 
 
 class TeacherLabel(BaseModel):

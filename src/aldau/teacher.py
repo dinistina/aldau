@@ -6,6 +6,7 @@ Usage (run from the project root):
     python -m aldau.teacher label --sample --limit 10      # 10 random ads (fixed seed)
     python -m aldau.teacher compare                        # teacher vs human labels in raw
     python -m aldau.teacher compare --gold                 # teacher vs the gold set
+    python -m aldau.teacher versions --old v1              # old vs current prompt, side by side
 
 How it saves money and survives crashes:
 - several ads go into one request (a "batch", 10 by default);
@@ -35,7 +36,9 @@ from aldau.collect import GOLD_PATH, RAW_PATH, read_ads
 from aldau.features import SIGNAL_DESCRIPTIONS_RU, PriceReference, find_signals
 from aldau.schema import Ad, TeacherLabel
 
-PROMPT_VERSION = "v1"
+# v1 — first prompt; risk scores came out bimodal (0.05 or >0.9).
+# v2 — explicit risk scale with examples for every range (calibration).
+PROMPT_VERSION = "v2"
 CACHE_PATH = Path("data/cache/teacher.jsonl")
 LABELS_PATH = Path("data/labeled/teacher_labels.jsonl")
 REPORT_PATH = Path("reports/teacher_check.md")
@@ -100,9 +103,20 @@ regex_hints — признаки, найденные регулярными вы
 
 Верни JSON {"results": [...]} — ровно один элемент на каждое объявление, с тем же id:
 - label: "scam" или "legit";
-- risk_score: число от 0 до 1 — твоя уверенность, что это мошенничество
-  (0–0.2 обычное объявление; 0.2–0.5 есть настораживающие детали, но схемы нет;
-  0.5–0.8 похоже на схему обмана; 0.8–1 явная схема). label = "scam", если risk_score >= 0.5;
+- risk_score: число от 0 до 1 — риск мошенничества. Пользуйся всей шкалой, а не только
+  крайними значениями; выбирай число внутри диапазона по силе признаков:
+  * 0.00–0.15 — признаков нет. Пример: «Продам стиральную машину LG, 6 кг, рабочая,
+    самовывоз, звоните» → 0.05.
+  * 0.15–0.40 — один слабый признак или неоднозначность, схемы нет. Примеры: «СРОЧНО продаю,
+    переезд, торг» → 0.2; «звонки не отвечаю, пишите в WhatsApp» → 0.25; цена заметно ниже
+    рынка без объяснения → 0.3; депозит при посуточной аренде «при заселении» → 0.15.
+  * 0.40–0.70 — несколько настораживающих признаков, но узнаваемой схемы нет. Примеры:
+    «продавец в другом городе, отправлю почтой» без требования предоплаты → 0.5;
+    очень низкая цена + срочность + только мессенджер → 0.6.
+  * 0.70–1.00 — узнаваемая схема обмана. Примеры: «ключи после оплаты первого месяца на
+    карту, хозяин в другом городе» → 0.95; «оплатите по ссылке OLX-доставки, введите данные
+    карты» → 0.98; «бронь 30 000, желающих много» до просмотра → 0.85.
+  label = "scam", если risk_score >= 0.5, иначе "legit";
 - signals: короткие названия найденных признаков латиницей. Используй по возможности эти:
   {signal_names}, price_too_low, insider_promise, fake_job;
   для честного объявления — пустой список или нейтральные признаки не указывай вовсе;
@@ -146,14 +160,16 @@ def build_prompt(ads: list[Ad], prices: PriceReference) -> str:
 # --- cache -------------------------------------------------------------------------
 
 
-def cache_key(ad: Ad, model: str) -> str:
+def cache_key(ad: Ad, model: str, version: str | None = None) -> str:
     """Hash of everything that decides the answer.
 
+    `version` defaults to the current PROMPT_VERSION; pass an old one to read old answers.
     price_ratio is left out on purpose: it changes every time new ads are imported
     (the medians move), and re-paying for every ad after each import is not worth
     the small difference.
     """
-    parts = [model, PROMPT_VERSION, ad.title, ad.text, str(ad.price_kzt), ad.category, str(ad.city)]
+    version = version or PROMPT_VERSION
+    parts = [model, version, ad.title, ad.text, str(ad.price_kzt), ad.category, str(ad.city)]
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()[:20]
 
 
@@ -186,12 +202,14 @@ def append_cache(path: Path, key: str, ad: Ad, model: str, label: TeacherLabel) 
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def cached_labels(ads: list[Ad], model: str, path: Path = CACHE_PATH) -> dict[str, TeacherLabel]:
-    """ad id -> teacher label, for the ads that this model + prompt version already labelled."""
+def cached_labels(
+    ads: list[Ad], model: str, path: Path = CACHE_PATH, version: str | None = None
+) -> dict[str, TeacherLabel]:
+    """ad id -> teacher label, for the ads this model + prompt version already labelled."""
     cache = read_cache(path)
     labels = {}
     for ad in ads:
-        record = cache.get(cache_key(ad, model))
+        record = cache.get(cache_key(ad, model, version))
         if record:
             labels[ad.id] = TeacherLabel.model_validate(record["label"])
     return labels
@@ -367,7 +385,30 @@ def compare_report(ads: list[Ad], labels: dict[str, TeacherLabel], model: str, s
         "Срез `case_based` содержит только scam (переписанные кейсы), поэтому precision там "
         "не показателен; важнее recall.",
     ]
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines + recall_text_section(judged, labels)) + "\n"
+
+
+def recall_text_section(judged: list[Ad], labels: dict[str, TeacherLabel]) -> list[str]:
+    """Recall with and without the scam ads marked "по тексту не распознать" (key t in gold).
+
+    A model that only reads the text cannot catch those, so recall is shown both ways:
+    with them (the honest number for users) and without them (what the text allows).
+    """
+    scam = [ad for ad in judged if ad.label == "scam"]
+    visible = [ad for ad in scam if not ad.not_from_text]
+
+    def recall(group: list[Ad]) -> str:
+        caught = sum(labels[ad.id].label == "scam" for ad in group)
+        return f"{fmt(caught / len(group)) if group else '—'} ({caught} из {len(group)})"
+
+    return [
+        "",
+        "## Recall и объявления «по тексту не распознать»",
+        "",
+        f"- recall по всем scam: {recall(scam)}",
+        f"- recall без помеченных «по тексту не распознать»: {recall(visible)}",
+        f"- помечено таких scam: {len(scam) - len(visible)}",
+    ]
 
 
 # --- command line -------------------------------------------------------------------
@@ -452,6 +493,43 @@ def cmd_compare(args: argparse.Namespace) -> None:
             )
 
 
+def compare_versions(
+    ads: list[Ad], model: str, old: str, new: str, path: Path = CACHE_PATH
+) -> list[str]:
+    """Side-by-side table of two prompt versions for the ads both have labelled."""
+    old_labels = cached_labels(ads, model, path, old)
+    new_labels = cached_labels(ads, model, path, new)
+    both = [ad for ad in ads if ad.id in old_labels and ad.id in new_labels]
+    lines = [
+        f"| id | наша метка | {old} | {new} | объявление |",
+        "|---|---|---|---|---|",
+    ]
+    for ad in both:
+        a, b = old_labels[ad.id], new_labels[ad.id]
+        mark = " ⚠️" if a.label != b.label else ""
+        lines.append(
+            f"| {ad.id} | {ad.label} | {a.label} {a.risk_score:.2f} | {b.label} {b.risk_score:.2f}"
+            f"{mark} | {ad.title[:45]} |"
+        )
+    for version, labels in ((old, old_labels), (new, new_labels)):
+        scores = [labels[ad.id].risk_score for ad in both]
+        if scores:
+            middle = sum(0.15 < s < 0.7 for s in scores)
+            lines.append(
+                f"\n{version}: разных значений риска {len(set(scores))}, "
+                f"в диапазоне 0.15–0.70: {middle} из {len(scores)}"
+            )
+    return lines
+
+
+def cmd_versions(args: argparse.Namespace) -> None:
+    model = llm.model_id()
+    ads = read_ads(RAW_PATH)
+    if args.ids:
+        ads = select_ads(ads, args.ids, sample=False, limit=len(ads))
+    print("\n".join(compare_versions(ads, model, args.old, args.new or PROMPT_VERSION)))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Teacher LLM: label ads and check the labels.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -471,6 +549,12 @@ def main() -> None:
     p_compare = sub.add_parser("compare", help="teacher vs human labels (no API calls)")
     p_compare.add_argument("--gold", action="store_true", help="use the gold set")
     p_compare.set_defaults(func=cmd_compare)
+
+    p_versions = sub.add_parser("versions", help="compare two prompt versions (no API calls)")
+    p_versions.add_argument("--old", required=True, help="old prompt version, e.g. v1")
+    p_versions.add_argument("--new", help="new prompt version (default: current)")
+    p_versions.add_argument("--ids", help="comma-separated ad ids")
+    p_versions.set_defaults(func=cmd_versions)
 
     args = parser.parse_args()
     try:

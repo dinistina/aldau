@@ -13,6 +13,7 @@ from aldau.teacher import (
     cached_labels,
     classification_metrics,
     compare_report,
+    compare_versions,
     export_labels,
     label_ads,
     parse_batch,
@@ -248,6 +249,35 @@ def test_classification_metrics():
     assert (m["tp"], m["fp"], m["fn"], m["tn"]) == (1, 1, 1, 2)
     assert m["precision"] == 0.5 and m["recall"] == 0.5 and m["f1"] == 0.5
     assert m["accuracy"] == pytest.approx(0.6)
+
+
+def test_recall_shown_with_and_without_not_from_text_ads():
+    hidden = make_ad(1, "scam", "real").model_copy(update={"not_from_text": True})
+    visible = make_ad(2, "scam", "case_based")
+    labels = {hidden.id: label("legit", 0.05), visible.id: label("scam", 0.9)}
+    report = compare_report([hidden, visible], labels, MODEL, "test")
+    assert "recall по всем scam: 0.50 (1 из 2)" in report
+    assert "recall без помеченных «по тексту не распознать»: 1.00 (1 из 1)" in report
+    assert "помечено таких scam: 1" in report
+
+
+def test_compare_versions_reads_both_prompt_versions(tmp_path, monkeypatch):
+    ads = [make_ad(1), make_ad(2)]
+    monkeypatch.setattr("aldau.teacher.PROMPT_VERSION", "v1")
+    run(ads, tmp_path, FakeTeacher())
+    monkeypatch.setattr("aldau.teacher.PROMPT_VERSION", "v2")
+    teacher = FakeTeacher()
+    run(ads, tmp_path, teacher)
+    assert len(teacher.prompts) == 1  # v1 answers were not reused for v2
+
+    table = compare_versions(ads, MODEL, "v1", "v2", tmp_path / "cache.jsonl")
+    assert sum(line.startswith(f"| {ad.id}") for ad in ads for line in table) == 2
+
+
+def test_prompt_contains_the_risk_scale():
+    prompt = build_prompt([make_ad(1)], PriceReference())
+    for band in ("0.00–0.15", "0.15–0.40", "0.40–0.70", "0.70–1.00"):
+        assert band in prompt
 
 
 def test_compare_report_splits_by_origin():

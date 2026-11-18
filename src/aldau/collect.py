@@ -327,6 +327,24 @@ def pick_unlabelled(raw_ads: list[Ad], gold_ads: list[Ad], seed: int = 42) -> li
     return todo
 
 
+GOLD_PROMPT = (
+    "s = scam, l = legit (+t: по тексту не распознать, напр. st), n = пропустить, q = выйти > "
+)
+
+
+def parse_gold_answer(answer: str) -> tuple[str, bool] | None:
+    """'s' -> (scam, False), 'st' / 'ts' -> (scam, True), 'l' / 'lt' -> legit; else None (skip).
+
+    "t" marks an ad whose label cannot be seen from its text: e.g. a real scam whose
+    ad looks normal because the fraud happened later in the chat.
+    """
+    letters = set(answer.replace(" ", ""))
+    if not letters <= {"s", "l", "t"} or len(letters & {"s", "l"}) != 1:
+        return None
+    label = "scam" if "s" in letters else "legit"
+    return label, "t" in letters
+
+
 def label_gold(
     raw_path: Path = RAW_PATH,
     gold_path: Path = GOLD_PATH,
@@ -354,12 +372,14 @@ def label_gold(
         print(f"\n{ad.title}\n\n{ad.text}")
         print("=" * 70)
 
-        answer = ask("s = scam, l = legit, n = пропустить, q = выйти > ").strip().lower()
+        answer = ask(GOLD_PROMPT).strip().lower()
         if answer == "q":
             break
-        if answer not in ("s", "l"):
+        parsed = parse_gold_answer(answer)
+        if parsed is None:
             continue  # skipped: the ad stays outside gold
-        labelled = ad.model_copy(update={"label": "scam" if answer == "s" else "legit"})
+        label, not_from_text = parsed
+        labelled = ad.model_copy(update={"label": label, "not_from_text": not_from_text})
         append_ad(gold_path, labelled)
         done += 1
         labelled_now += 1

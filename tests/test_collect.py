@@ -1,9 +1,12 @@
+import pytest
+
 from aldau.collect import (
     append_ad,
     build_ad,
     crosstab,
     label_gold,
     make_ad_id,
+    parse_gold_answer,
     pick_unlabelled,
     read_ads,
     save_new_ad,
@@ -98,6 +101,35 @@ def test_label_gold_saves_answers_and_stops_on_q(tmp_path):
 
     assert count == 2
     assert [ad.label for ad in read_ads(gold)] == ["scam", "legit"]
+
+
+@pytest.mark.parametrize(
+    "answer, expected",
+    [
+        ("s", ("scam", False)),
+        ("l", ("legit", False)),
+        ("st", ("scam", True)),
+        ("ts", ("scam", True)),
+        ("lt", ("legit", True)),
+        ("t", None),  # t alone: no label
+        ("sl", None),  # both labels
+        ("n", None),
+        ("x", None),
+    ],
+)
+def test_parse_gold_answer(answer, expected):
+    assert parse_gold_answer(answer) == expected
+
+
+def test_label_gold_saves_not_from_text_mark(tmp_path):
+    raw, gold = tmp_path / "ads.jsonl", tmp_path / "gold.jsonl"
+    for n in range(2):
+        append_ad(raw, make_ad(n))
+    label_gold(raw, gold, ask=fake_input(["st", "l"]))
+    assert [(ad.label, ad.not_from_text) for ad in read_ads(gold)] == [
+        ("scam", True),
+        ("legit", False),
+    ]
 
 
 def test_label_gold_continues_where_it_stopped(tmp_path):
