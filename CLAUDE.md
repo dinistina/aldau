@@ -176,6 +176,10 @@ zone; candidate for prompt v2.
 | 2026-11-19 | Prompt v2 (owner's request): explicit risk scale with examples (0–0.15 / 0.15–0.4 / 0.4–0.7 / 0.7–1), `PROMPT_VERSION = "v2"`; `teacher versions --old v1` side-by-side table; gold key `t` (`st`/`lt`) -> `Ad.not_from_text`, `compare` shows recall with and without such ads; PLAN: cascade grey zone uses the **student's** risk, teacher `risk_score` is the soft label in Phase 5 | done |
 | 2026-11-19 | v2 trial on the same 10 ads: **not done yet** — Gemini `gemini-3.8-flash` overloaded (503 "high demand" / 504 "deadline expired") on 2 runs x 5 attempts, 5 min apart. Retry later on the same model (the comparison needs the model fixed); if 504 persists, try `--batch-size 5` | pending |
 
+Owner's rule for the v2 retry (2026-11-19): wait until the owner says to run it (probably in the morning).
+On `504 Deadline expired` -> rerun at once with `--batch-size 5` (2 requests, approved). On `503` ->
+wait and retry later; **do not change the model**. Do nothing else until the owner says so.
+
 Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, "ok" given. Order agreed
 with the owner: (1) code + tests with mocks, no real requests; (2) trial run on 10 ads, show 3–4
 full teacher answers; (3) **no full labelling run until the owner has collected more data and
