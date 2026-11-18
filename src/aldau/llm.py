@@ -69,11 +69,13 @@ def _gemini_client(api_key: str):
 
 
 def _call_gemini(prompt: str, schema: type[BaseModel], model: str) -> str:
-    from google.genai import errors, types
-
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise LLMError("GEMINI_API_KEY в .env не задан")
+    try:
+        from google.genai import errors, types
+    except ImportError as error:
+        raise LLMError('Пакет google-genai не установлен: pip install -e ".[llm]"') from error
     config = types.GenerateContentConfig(
         response_mime_type="application/json",  # ask for JSON only, no prose around it
         response_json_schema=schema.model_json_schema(),  # ... in exactly this shape
