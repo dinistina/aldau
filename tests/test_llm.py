@@ -84,6 +84,19 @@ def test_missing_gemini_key_is_reported_without_calling_the_api():
         llm._call_gemini("p", Answer, "test-model")
 
 
+def test_network_problems_are_recognised_by_class_name():
+    class ReadTimeout(Exception):  # e.g. httpx.ReadTimeout, httpx2.ReadTimeout
+        pass
+
+    class ConnectError(Exception):
+        pass
+
+    assert llm.is_network_problem(ReadTimeout())
+    assert llm.is_network_problem(ConnectError())
+    assert llm.is_network_problem(TimeoutError())
+    assert not llm.is_network_problem(ValueError("bad schema"))
+
+
 def test_other_providers_are_not_connected_yet():
     with pytest.raises(llm.LLMError, match="не подключён"):
         llm._not_implemented("anthropic")("p", Answer, "m")

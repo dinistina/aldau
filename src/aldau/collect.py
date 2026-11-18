@@ -109,7 +109,7 @@ def build_ad(
         lang=detect_lang(title + " " + text),
         label=label,
         origin=origin,
-        source_note=mask_pii(source_note.strip()) if source_note else None,
+        source_note=mask_pii(source_note.strip(), keep_links=True) if source_note else None,
     )
 
 

@@ -29,6 +29,7 @@ PROVIDERS_KNOWN = ["gemini", "openrouter", "ollama", "anthropic"]
 RETRY_STATUS = {429, 500, 502, 503, 504}
 MAX_RETRIES = 4
 FIRST_WAIT_SECONDS = 10
+REQUEST_TIMEOUT_SECONDS = 180  # one request may take long (the model "thinks"), but not forever
 
 
 class LLMError(Exception):
@@ -61,11 +62,28 @@ def model_id() -> str:
 # Each provider function takes (prompt, schema, model) and returns the answer text.
 
 
+def is_network_problem(error: Exception) -> bool:
+    """Timeout or dropped connection, whatever HTTP library the SDK uses underneath.
+
+    google-genai has switched HTTP libraries between versions, so we look at the
+    exception's class name instead of importing a specific library.
+    """
+    if isinstance(error, TimeoutError | ConnectionError):
+        return True
+    names = [cls.__name__ for cls in type(error).__mro__]
+    return any(
+        word in name for name in names for word in ("Timeout", "Connect", "Network", "Transport")
+    )
+
+
 @cache
 def _gemini_client(api_key: str):
     from google import genai  # imported here so the rest of the project works without it
+    from google.genai import types
 
-    return genai.Client(api_key=api_key)
+    # Without a timeout a stuck connection waits forever (seen in the first trial run).
+    timeout_ms = int(REQUEST_TIMEOUT_SECONDS * 1000)
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=timeout_ms))
 
 
 def _call_gemini(prompt: str, schema: type[BaseModel], model: str) -> str:
@@ -91,6 +109,12 @@ def _call_gemini(prompt: str, schema: type[BaseModel], model: str) -> str:
         if error.code in RETRY_STATUS:
             raise RetryableError(message) from error
         raise LLMError(message) from error
+    except Exception as error:
+        if is_network_problem(error):
+            raise RetryableError(
+                f"Gemini: сетевая ошибка или таймаут ({type(error).__name__})"
+            ) from error
+        raise
     if not response.text:
         raise LLMError("Gemini вернул пустой ответ (возможно, сработал фильтр безопасности)")
     return response.text

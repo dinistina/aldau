@@ -165,6 +165,14 @@ Trial run prepared (waiting for the owner's go): `python -m aldau.teacher label 
 39acf6eda68e,4c02874893cb,702429d930e2,e7244b0ccd31,4551e689bf8e,edef976ad909,5a9b726f10b8,c4483ded2f31,80255078a661,450887c1738e`
 = 1 request to Gemini (up to 5 with retries).
 
+| 2026-11-19 | Phase 3 trial run, approved by the owner: 10 chosen ads, model switched to `gemini-3.8-flash` (`gemini-2.5-flash` returned 404 "no longer available to new users"). Attempts: 404, then a request that hung >10 min (no client timeout), then a local import bug; 4th attempt succeeded — 1 request, 10/10 valid answers cached. Fixes: 180 s request timeout, network errors recognised by exception class name (google-genai 3.5 no longer uses httpx), `source_note` keeps links (a news URL had been masked to [LINK]) | done |
+
+Trial findings: 9 of 9 judgeable ads — 8 correct. All 3 case_based scams caught (0.92–0.99), all 5 legit
+correct incl. hard negatives (daily rent with deposit, imported engines, "СРОЧНО" MacBook). The only real
+scam (kitchen set, from a Tengrinews story) was called legit 0.05 — its text has no visible scheme; the fraud
+happened outside the ad. Risk scores are bimodal (0.05 or >0.9): poor calibration for the cascade grey
+zone; candidate for prompt v2.
+
 Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, "ok" given. Order agreed
 with the owner: (1) code + tests with mocks, no real requests; (2) trial run on 10 ads, show 3–4
 full teacher answers; (3) **no full labelling run until the owner has collected more data and

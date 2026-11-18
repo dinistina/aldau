@@ -54,6 +54,13 @@ def test_parse_block_optional_seventh_field_is_source_note():
         ["olx | аренда квартир | 90000 | Алматы | scam | real | tg-канал, скриншот", "Сдам", "..."]
     )
     assert ad.source_note == "tg-канал, скриншот"
+
+
+def test_source_note_keeps_news_link_but_masks_phone():
+    note = "https://tengrinews.kz/news/123/ тел 87011234567"
+    header = f"olx | мебель | 135000 |  | scam | real | {note}"
+    ad = parse_block([header, "Продам гарнитур"])
+    assert ad.source_note == "https://tengrinews.kz/news/123/ тел [PHONE]"
     assert parse_block(["olx | мебель | 5000 | Тараз | legit | real", "Стул"]).source_note is None
 
 

@@ -78,15 +78,19 @@ KAZAKH_WORDS = {
 }  # fmt: skip
 
 
-def mask_pii(text: str) -> str:
+def mask_pii(text: str, keep_links: bool = False) -> str:
     """Replace personal data in `text` with placeholders.
 
     Order matters: emails go first (otherwise the URL rule would eat "mail.ru"
     out of an address), links go before phones (a wa.me/7701... link contains a
     phone number and should become one [LINK]).
+
+    keep_links=True is for our own notes (e.g. "source: a news article URL"):
+    a link to a news site is not personal data and is needed to trace the source.
     """
     text = EMAIL_RE.sub("[EMAIL]", text)
-    text = URL_RE.sub("[LINK]", text)
+    if not keep_links:
+        text = URL_RE.sub("[LINK]", text)
     text = USERNAME_RE.sub("[USERNAME]", text)
     text = PHONE_RE.sub("[PHONE]", text)
     text = NAME_AFTER_TRIGGER_RE.sub(r"\1 [NAME]", text)
