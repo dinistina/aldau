@@ -20,7 +20,10 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 llm = ["anthropic", "google-genai", "openai"]
 # ml = light classic ML (baseline, EDA); deep = neural networks (Phase 5 student)
 ml = ["scikit-learn", "matplotlib", "pandas"]
-deep = ["transformers", "torch", "datasets"]
+# torch with CUDA must come from the PyTorch index, see CLAUDE.md "Commands".
+# `datasets` is left out: its pyarrow DLL is blocked on the owner's laptop and a plain
+# torch Dataset is enough for a few thousand ads.
+deep = ["transformers", "torch"]
 # pHash is implemented by hand (photos.py), so only Pillow is needed
 photos = ["Pillow"]
 bot = ["aiogram>=3.0"]

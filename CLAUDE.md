@@ -102,20 +102,29 @@ aldau/
 
 ## Commands
 - Install: `pip install -e ".[dev,photos]"` (add groups as phases need them: `llm`, `ml`
-  (scikit-learn, matplotlib, pandas), `deep` (torch, transformers, datasets), `bot`).
+  (scikit-learn, matplotlib, pandas), `deep` (torch, transformers), `bot`).
   Use a local virtualenv in `.venv/` (gitignored).
+- torch with GPU support (Windows): `pip install torch --index-url https://download.pytorch.org/whl/cu128`
+  (plain `pip install torch` on Windows gives a CPU-only build).
 - EDA report: `python -m aldau.eda` -> `reports/eda.md` (aggregates only, no ad texts; committed).
 - Tests: `pytest -q`
 - Lint: `ruff check src tests`
 - On the owner's Windows laptop, Application Control blocks the `pytest.exe` launcher in `.venv`;
   run tools through the interpreter instead: `.venv\Scripts\python.exe -m pytest -q` and
   `.venv\Scripts\python.exe -m ruff check src tests`.
-- The same policy (Windows Smart App Control / Application Control) blocks a DLL inside numpy
-  (`numpy.random._generator`), so numpy, scipy, scikit-learn, matplotlib and imagehash do not run
-  on that laptop (found 2026-11-17). Do not try to bypass the policy; it is the owner's security
-  setting. Phase 2 code is numpy-free on purpose (own pHash on Pillow, own ROC-AUC). Phases that
-  need numpy (5: training) must run in CI, Google Colab, the other laptop, or after the owner
-  decides about the policy himself — ask him before starting Phase 5.
+- Windows Smart App Control / Application Control is active on the owner's laptop and blocks
+  DLLs by reputation; the blocks can change over time. Do not try to bypass the policy (the owner
+  decided not to touch it, 2026-11-17). If an import fails with "An Application Control policy has
+  blocked this file", report it and find a way around in code (e.g. drop the dependency).
+
+## Machines (checked 2026-11-19)
+- **MSI Katana GF76 (host STINA), NVIDIA RTX 3060 Laptop GPU, driver 596.21** — the main machine.
+  Repo in `F:\aldau`, `.venv` with all groups. Works: numpy, scipy, scikit-learn, pandas,
+  matplotlib, torch 2.11 + CUDA 12.8 (`torch.cuda.is_available()` is True, matmul on cuda:0),
+  transformers, google-genai, aiogram. Blocked: `pyarrow._dataset` -> the `datasets` library does
+  not import (not needed). On 2026-11-17 numpy was blocked on this same machine; on 2026-11-19 it
+  loads. **Phase 5 (training, rubert-tiny2 on GPU) is done here**; Google Colab is the fallback.
+- `data/` and `.env` are not in git; they live in `F:\aldau\data` and `F:\aldau\.env` on the MSI.
 
 ## Git
 Small commits with clear messages, one logical change each. Commit at the end of every phase.
@@ -148,5 +157,9 @@ category 0.78 (`запчасти`, `посуточная аренда` 100 % sca
 (no signal yet). No photos collected. The owner is collecting more data in parallel (honest
 booking/deposit ads, legit parts, real scam texts); gold labelling is postponed.
 
-Next: Phase 3 (teacher, `llm.py`) — show the plan and wait for the owner's "ok". It calls the API:
-state the number of requests and wait for confirmation before any run.
+| 2026-11-19 | MSI environment checked: all dependency groups installed, torch with CUDA sees the RTX 3060, 173 tests pass; `datasets` dropped from the `deep` group (pyarrow DLL blocked); `GEMINI_API_KEY` placed in `.env` (owner's request) | done |
+
+Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, waiting for "ok". Order agreed
+with the owner: (1) code + tests with mocks, no real requests; (2) trial run on 10 ads, show 3–4
+full teacher answers; (3) **no full labelling run until the owner has collected more data and
+labelled gold.** Before any real API run, state the number of requests and wait for confirmation.
