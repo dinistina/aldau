@@ -159,7 +159,13 @@ booking/deposit ads, legit parts, real scam texts); gold labelling is postponed.
 
 | 2026-11-19 | MSI environment checked: all dependency groups installed, torch with CUDA sees the RTX 3060, 173 tests pass; `datasets` dropped from the `deep` group (pyarrow DLL blocked); `GEMINI_API_KEY` placed in `.env` (owner's request) | done |
 
-Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, waiting for "ok". Order agreed
+| 2026-11-19 | Phase 3, part 1 — `llm.py` (`complete_json`, Gemini via google-genai with JSON schema + temperature 0, backoff 10/20/40/80 s on 429/5xx, other providers stubbed), `teacher.py` (prompt `PROMPT_VERSION = "v1"` with Kazakhstan scam schemes and "not a scam by itself" list; batches of 10; per-ad cache `data/cache/teacher.jsonl`; per-item pydantic check; `label` with y/n cost guard and `--show`; `compare` -> `reports/teacher_check.md` split by origin), `tests/conftest.py` blocks real API calls and .env in tests. No real API request made yet | done |
+
+Trial run prepared (waiting for the owner's go): `python -m aldau.teacher label --show --ids
+39acf6eda68e,4c02874893cb,702429d930e2,e7244b0ccd31,4551e689bf8e,edef976ad909,5a9b726f10b8,c4483ded2f31,80255078a661,450887c1738e`
+= 1 request to Gemini (up to 5 with retries).
+
+Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, "ok" given. Order agreed
 with the owner: (1) code + tests with mocks, no real requests; (2) trial run on 10 ads, show 3–4
 full teacher answers; (3) **no full labelling run until the owner has collected more data and
 labelled gold.** Before any real API run, state the number of requests and wait for confirmation.
