@@ -198,6 +198,9 @@ run (34 requests, `--batch-size 5`) waits for the owner's "ok".
 Full teacher run rule (owner, 2026-11-23): all labels must come from ONE teacher — `gemini-3.8-flash`,
 prompt v2; never switch the model. If a run fails on 503, do not retry the same day; retry in the
 morning, 08:00–11:00 Almaty time (night in the US, less load). The run resumes from the cache.
+2026-11-23 evening: two attempts (22:15, 22:38) stopped on the first request with 503; 10 of 177
+ads labelled (the trial ads). Scheduled app task `aldau-teacher-morning-run` resumes the run on
+2026-11-24 at 08:30 Almaty, retrying every 30 min until 11:00 (runs only if the Claude app is open).
 
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
