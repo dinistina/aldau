@@ -195,6 +195,10 @@ run (34 requests, `--batch-size 5`) waits for the owner's "ok".
 | 2026-11-23 | Gold fixes by the owner (logged in `data/gold_changes.jsonl`, reason "уточнён смысл t: метка = правда, t = по тексту не видно"): fb6bd5f1445d, 34f42134036a, 39acf6eda68e -> scam + t. Gold now 30 scam / 70 legit, 8 with t. Kept legit: 197a0fa10b9c, 450887c1738e. Pending the owner's decision: b951640564f2 (фары), 23bb71cac21d, 94ef27cd90a1 | done |
 | 2026-11-23 | Skip counter: "n" in gold labelling writes the id to `data/gold/skipped.txt` (the first 77 rebuilt from the labelling order); skipped ads are not offered again (`--include-skipped` to revisit); unclear answers are asked again; `collect gold --only-inbox data/inboxN.txt` labels only the ads of one inbox (no size limit); `stats` shows skipped and t counts | done |
 
+Full teacher run rule (owner, 2026-11-23): all labels must come from ONE teacher — `gemini-3.8-flash`,
+prompt v2; never switch the model. If a run fails on 503, do not retry the same day; retry in the
+morning, 08:00–11:00 Almaty time (night in the US, less load). The run resumes from the cache.
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 
