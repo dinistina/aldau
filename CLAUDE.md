@@ -181,6 +181,15 @@ still legit). Risk spread improved but stays narrow: distinct values 4 -> 7, in 
 (kitchen set 0.20 "messenger", 4Runner 0.20 "urgency"; daily rent with deposit 0.15; scams 0.90–0.98).
 Gemini's free tier is unstable for this model: expect 503/504; use `--batch-size 5` for real runs.
 
+| 2026-11-23 | Gold labelled by the owner: 100 ads (73 legit / 27 scam after the #19 fix; 28 case_based, 72 real; 30 kk), 77 skipped, 7 with `t`, no synthetic. #19 (c7352d73766c) changed st -> l on the owner's request (it was `st`, not `lt`), logged. Backup `data/backup/gold_2026-11-23_before_fix19.jsonl` | done |
+| 2026-11-23 | `gold.py`: `diff` (gold vs import labels), `change` (logged to `data/gold_changes.jsonl`: id, was, now, reason, date), `freeze` (`data/gold/FROZEN.json` with SHA-256; `gold` labelling and `change` refuse afterwards), `check`. `agreement.py`: `sample` (30 random gold ids, seed 7), `label` (second annotator, blind to the first labels), `kappa` (Cohen's kappa, confusion table, t agreement) | done |
+
+Gold issues raised with the owner 2026-11-23: scam 27 < 30; only 2 real scam in gold, both `t`;
+8 gold labels differ from import labels — incl. 3 case_based schemes labelled legit (two of them
+`lt`, which contradicts the meaning of `t`) and the kitchen-set real scam labelled plain `l`.
+The owner rereads them once (`python -m aldau.gold diff`), then gold is frozen. The full teacher
+run (34 requests, `--batch-size 5`) waits for the owner's "ok".
+
 Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, "ok" given. Order agreed
 with the owner: (1) code + tests with mocks, no real requests; (2) trial run on 10 ads, show 3–4
 full teacher answers; (3) **no full labelling run until the owner has collected more data and

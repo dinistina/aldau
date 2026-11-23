@@ -30,6 +30,8 @@ from aldau.schema import Ad
 
 RAW_PATH = Path("data/raw/ads.jsonl")
 GOLD_PATH = Path("data/gold/gold.jsonl")
+# Written by `python -m aldau.gold freeze`; while it exists, gold cannot be changed.
+GOLD_FREEZE_PATH = Path("data/gold/FROZEN.json")
 # Ids of ads whose price mismatch was checked by a human and is fine (one id per line).
 PRICE_OK_PATH = Path("data/price_ok.txt")
 GOLD_TARGET = 100
@@ -357,6 +359,8 @@ def label_gold(
     `ask` is `input` in real use; tests pass a fake function instead.
     Returns how many ads were labelled in this run.
     """
+    if gold_path.with_name(GOLD_FREEZE_PATH.name).exists():
+        raise SystemExit("Gold заморожен (data/gold/FROZEN.json) — размечать дальше нельзя.")
     gold_ads = read_ads(gold_path)
     todo = pick_unlabelled(read_ads(raw_path), gold_ads)
     done = len(gold_ads)
