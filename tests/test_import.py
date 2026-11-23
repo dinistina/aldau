@@ -34,7 +34,13 @@ def test_split_inbox_reports_header_line_numbers():
 
 def test_parse_block_reads_header_title_and_text():
     ad = parse_block(
-        ["olx | Телефоны | 220 000 | Алматы | legit | real", "iPhone 13", "Строка 1", "", "Строка 2"]  # noqa: E501
+        [
+            "olx | Телефоны | 220 000 | Алматы | legit | real",
+            "iPhone 13",
+            "Строка 1",
+            "",
+            "Строка 2",
+        ]  # noqa: E501
     )
     assert (ad.source, ad.category, ad.price_kzt, ad.city) == ("olx", "телефоны", 220000, "Алматы")
     assert (ad.label, ad.origin) == ("legit", "real")

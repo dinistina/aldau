@@ -47,9 +47,7 @@ def test_complete_json_returns_parsed_answer(monkeypatch):
 
 
 def test_retries_temporary_errors_with_growing_pause(monkeypatch):
-    provider = fake_provider(
-        [llm.RetryableError("429"), llm.RetryableError("503"), '{"value": 1}']
-    )
+    provider = fake_provider([llm.RetryableError("429"), llm.RetryableError("503"), '{"value": 1}'])
     monkeypatch.setitem(llm.PROVIDERS, "gemini", provider)
     waits = []
     assert llm.complete_json("p", Answer, sleep=waits.append, log=lambda m: None) == {"value": 1}

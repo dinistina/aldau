@@ -347,22 +347,46 @@ def parse_gold_answer(answer: str) -> tuple[str, bool] | None:
     return label, "t" in letters
 
 
+def skipped_path_for(gold_path: Path) -> Path:
+    """Skipped ids live next to gold.jsonl: data/gold/skipped.txt."""
+    return gold_path.with_name("skipped.txt")
+
+
+def read_skipped(path: Path) -> set[str]:
+    """Ids skipped with "n" in gold labelling. Text after # is a comment."""
+    if not path.exists():
+        return set()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return {line.split("#", 1)[0].strip() for line in lines if line.split("#", 1)[0].strip()}
+
+
 def label_gold(
     raw_path: Path = RAW_PATH,
     gold_path: Path = GOLD_PATH,
     target: int = GOLD_TARGET,
     ask: Callable[[str], str] = input,
+    only_ids: set[str] | None = None,
+    include_skipped: bool = False,
 ) -> int:
     """Show ads one by one and save your answers to the gold file.
 
     Each answer is written immediately, so you can stop (q) and continue later.
+    "n" skips an ad and records its id in data/gold/skipped.txt: skipped ads are
+    not offered again (unless include_skipped=True), and the count is in `stats`.
+    only_ids: offer only these ads (e.g. the ads of one new inbox file); then the
+    `target` size limit does not apply.
     `ask` is `input` in real use; tests pass a fake function instead.
     Returns how many ads were labelled in this run.
     """
     if gold_path.with_name(GOLD_FREEZE_PATH.name).exists():
         raise SystemExit("Gold заморожен (data/gold/FROZEN.json) — размечать дальше нельзя.")
+    skipped_path = skipped_path_for(gold_path)
+    skipped = set() if include_skipped else read_skipped(skipped_path)
     gold_ads = read_ads(gold_path)
-    todo = pick_unlabelled(read_ads(raw_path), gold_ads)
+    todo = [ad for ad in pick_unlabelled(read_ads(raw_path), gold_ads) if ad.id not in skipped]
+    if only_ids is not None:
+        todo = [ad for ad in todo if ad.id in only_ids]
+        target = len(gold_ads) + len(todo)
     done = len(gold_ads)
     labelled_now = 0
 
@@ -376,19 +400,36 @@ def label_gold(
         print(f"\n{ad.title}\n\n{ad.text}")
         print("=" * 70)
 
-        answer = ask(GOLD_PROMPT).strip().lower()
+        while True:
+            answer = ask(GOLD_PROMPT).strip().lower()
+            if answer in ("q", "n") or parse_gold_answer(answer) is not None:
+                break
+            print("Не понял ответ. Варианты: s, l, st, lt, n, q")
         if answer == "q":
             break
-        parsed = parse_gold_answer(answer)
-        if parsed is None:
-            continue  # skipped: the ad stays outside gold
-        label, not_from_text = parsed
+        if answer == "n":
+            skipped_path.parent.mkdir(parents=True, exist_ok=True)
+            with skipped_path.open("a", encoding="utf-8") as f:
+                f.write(ad.id + "\n")
+            continue
+        label, not_from_text = parse_gold_answer(answer)
         labelled = ad.model_copy(update={"label": label, "not_from_text": not_from_text})
         append_ad(gold_path, labelled)
         done += 1
         labelled_now += 1
 
     return labelled_now
+
+
+def ids_in_inbox(path: Path) -> set[str]:
+    """Ids of the valid ads in an inbox file (the same ids that `import` stores)."""
+    ids = set()
+    for _, lines in split_inbox(path.read_text(encoding="utf-8-sig")):
+        try:
+            ids.add(parse_block(lines).id)
+        except ValueError:
+            continue
+    return ids
 
 
 # --- command line -------------------------------------------------------------
@@ -479,8 +520,15 @@ def cmd_import(args: argparse.Namespace) -> None:
 
 
 def cmd_gold(args: argparse.Namespace) -> None:
-    count = label_gold(target=args.target)
-    print(f"\nРазмечено сейчас: {count}. Всего в gold: {len(read_ads(GOLD_PATH))}")
+    only_ids = ids_in_inbox(Path(args.only_inbox)) if args.only_inbox else None
+    if only_ids is not None:
+        print(f"Только объявления из {args.only_inbox}: {len(only_ids)}")
+    count = label_gold(target=args.target, only_ids=only_ids, include_skipped=args.include_skipped)
+    skipped = len(read_skipped(skipped_path_for(GOLD_PATH)))
+    print(
+        f"\nРазмечено сейчас: {count}. Всего в gold: {len(read_ads(GOLD_PATH))}, "
+        f"пропущено (n) всего: {skipped}"
+    )
 
 
 def crosstab(ads: list[Ad], row: str, title: str) -> str:
@@ -513,7 +561,11 @@ def cmd_stats(args: argparse.Namespace) -> None:
     print(crosstab(raw, "origin", "origin"))
     print()
     print(crosstab(raw, "lang", "язык"))
-    print(f"\nGold (ручная разметка): {len(gold)}/{GOLD_TARGET}")
+    print(
+        f"\nGold (ручная разметка): {len(gold)}/{GOLD_TARGET}, "
+        f"пропущено (n): {len(read_skipped(skipped_path_for(GOLD_PATH)))}"
+    )
+    print(f"  с пометкой t: {sum(ad.not_from_text for ad in gold)}")
     print(f"  по меткам: {dict(Counter(ad.label for ad in gold))}")
     print(f"  по origin: {dict(Counter(ad.origin for ad in gold))}")
 
@@ -560,6 +612,8 @@ def main() -> None:
 
     p_gold = sub.add_parser("gold", help="label ads by hand into data/gold/gold.jsonl")
     p_gold.add_argument("--target", type=int, default=GOLD_TARGET, help="gold set size")
+    p_gold.add_argument("--only-inbox", help="offer only the ads of this inbox file")
+    p_gold.add_argument("--include-skipped", action="store_true", help="offer skipped ads again")
     p_gold.set_defaults(func=cmd_gold)
 
     p_stats = sub.add_parser("stats", help="show how much is collected and labelled")

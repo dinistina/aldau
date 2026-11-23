@@ -119,12 +119,13 @@ aldau/
 
 ## Machines (checked 2026-11-19)
 - **MSI Katana GF76 (host STINA), NVIDIA RTX 3060 Laptop GPU, driver 596.21** — the main machine.
-  Repo in `F:\aldau`, `.venv` with all groups. Works: numpy, scipy, scikit-learn, pandas,
+  Repo in `F:\projects\aldau` (moved from `F:\aldau` on 2026-11-23), `.venv` with all groups. Works: numpy, scipy, scikit-learn, pandas,
   matplotlib, torch 2.11 + CUDA 12.8 (`torch.cuda.is_available()` is True, matmul on cuda:0),
   transformers, google-genai, aiogram. Blocked: `pyarrow._dataset` -> the `datasets` library does
   not import (not needed). On 2026-11-17 numpy was blocked on this same machine; on 2026-11-19 it
   loads. **Phase 5 (training, rubert-tiny2 on GPU) is done here**; Google Colab is the fallback.
-- `data/` and `.env` are not in git; they live in `F:\aldau\data` and `F:\aldau\.env` on the MSI.
+- `data/` and `.env` are not in git; they live in `F:\projects\aldau\data` and
+  `F:\projects\aldau\.env` on the MSI. The old copy `F:\aldau` is kept until the owner deletes it.
 
 ## Git
 Small commits with clear messages, one logical change each. Commit at the end of every phase.
@@ -189,6 +190,13 @@ Gold issues raised with the owner 2026-11-23: scam 27 < 30; only 2 real scam in 
 `lt`, which contradicts the meaning of `t`) and the kitchen-set real scam labelled plain `l`.
 The owner rereads them once (`python -m aldau.gold diff`), then gold is frozen. The full teacher
 run (34 requests, `--batch-size 5`) waits for the owner's "ok".
+
+| 2026-11-23 | Project moved to `F:\projects\aldau` on the owner's request (robocopy without `.venv`/caches; new `.venv` with all groups, torch CUDA OK, 233 tests pass); the session works there now | done |
+| 2026-11-23 | Gold fixes by the owner (logged in `data/gold_changes.jsonl`, reason "уточнён смысл t: метка = правда, t = по тексту не видно"): fb6bd5f1445d, 34f42134036a, 39acf6eda68e -> scam + t. Gold now 30 scam / 70 legit, 8 with t. Kept legit: 197a0fa10b9c, 450887c1738e. Pending the owner's decision: b951640564f2 (фары), 23bb71cac21d, 94ef27cd90a1 | done |
+| 2026-11-23 | Skip counter: "n" in gold labelling writes the id to `data/gold/skipped.txt` (the first 77 rebuilt from the labelling order); skipped ads are not offered again (`--include-skipped` to revisit); unclear answers are asked again; `collect gold --only-inbox data/inboxN.txt` labels only the ads of one inbox (no size limit); `stats` shows skipped and t counts | done |
+
+Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
+added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 
 Next: Phase 3 (teacher, `llm.py`) — plan shown to the owner 2026-11-19, "ok" given. Order agreed
 with the owner: (1) code + tests with mocks, no real requests; (2) trial run on 10 ads, show 3–4
