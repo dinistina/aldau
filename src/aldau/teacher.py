@@ -385,7 +385,34 @@ def compare_report(ads: list[Ad], labels: dict[str, TeacherLabel], model: str, s
         "Срез `case_based` содержит только scam (переписанные кейсы), поэтому precision там "
         "не показателен; важнее recall.",
     ]
-    return "\n".join(lines + recall_text_section(judged, labels)) + "\n"
+    sections = recall_text_section(judged, labels) + risk_distribution_section(judged, labels)
+    return "\n".join(lines + sections) + "\n"
+
+
+RISK_BANDS = [(0.0, 0.15), (0.15, 0.4), (0.4, 0.7), (0.7, 1.0001)]  # the scale from prompt v2
+
+
+def risk_distribution_section(judged: list[Ad], labels: dict[str, TeacherLabel]) -> list[str]:
+    """How the teacher's risk scores spread over the four ranges of the v2 scale.
+
+    A calibrated teacher should also use the middle (0.4–0.7) for unclear ads; if all
+    scores sit at the ends, risk_score adds little to the label (bad for soft labels).
+    """
+    lines = [
+        "",
+        "## Распределение risk_score по шкале промпта",
+        "",
+        "| диапазон | scam (человек) | legit (человек) |",
+        "|---|---|---|",
+    ]
+    for low, high in RISK_BANDS:
+        name = f"{low:.2f}–{min(high, 1.0):.2f}"
+        scam = sum(ad.label == "scam" and low <= labels[ad.id].risk_score < high for ad in judged)
+        legit = sum(ad.label == "legit" and low <= labels[ad.id].risk_score < high for ad in judged)
+        lines.append(f"| {name} | {scam} | {legit} |")
+    distinct = len({labels[ad.id].risk_score for ad in judged})
+    lines += ["", f"Разных значений risk_score: {distinct}"]
+    return lines
 
 
 def recall_text_section(judged: list[Ad], labels: dict[str, TeacherLabel]) -> list[str]:

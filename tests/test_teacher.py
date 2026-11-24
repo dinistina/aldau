@@ -274,6 +274,21 @@ def test_compare_versions_reads_both_prompt_versions(tmp_path, monkeypatch):
     assert sum(line.startswith(f"| {ad.id}") for ad in ads for line in table) == 2
 
 
+def test_risk_distribution_section_counts_bands():
+    ads = [make_ad(1, "scam"), make_ad(2, "legit"), make_ad(3, "legit"), make_ad(4, "scam")]
+    labels = {
+        ads[0].id: label("scam", 0.95),
+        ads[1].id: label("legit", 0.05),
+        ads[2].id: label("legit", 0.5),
+        ads[3].id: label("scam", 1.0),  # the top of the scale belongs to the last band
+    }
+    report = compare_report(ads, labels, MODEL, "test")
+    assert "| 0.00–0.15 | 0 | 1 |" in report
+    assert "| 0.40–0.70 | 0 | 1 |" in report
+    assert "| 0.70–1.00 | 2 | 0 |" in report
+    assert "Разных значений risk_score: 4" in report
+
+
 def test_prompt_contains_the_risk_scale():
     prompt = build_prompt([make_ad(1)], PriceReference())
     for band in ("0.00–0.15", "0.15–0.40", "0.40–0.70", "0.70–1.00"):

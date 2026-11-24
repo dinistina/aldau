@@ -197,12 +197,27 @@ run (34 requests, `--batch-size 5`) waits for the owner's "ok".
 
 | 2026-11-23 | Owner's last 3 gold decisions (b951640564f2 -> scam; 23bb71cac21d, 94ef27cd90a1 -> legit) were made in the OLD folder `F:\aldau` by mistake; re-applied in `F:\projects\aldau` with the owner's reasons verbatim. Gold now 29 scam / 71 legit, 6 with t, 7 logged changes. Only 1 real scam in gold (kitchen set, t): origin still decides the label (case_based 100 % scam, real 1 %). **Work only in `F:\projects\aldau`; `F:\aldau` is stale** | done |
 
-Full teacher run rule (owner, 2026-11-23): all labels must come from ONE teacher — `gemini-3.8-flash`,
-prompt v2; never switch the model. If a run fails on 503, do not retry the same day; retry in the
+Full teacher run rule (owner, 2026-11-23, teacher updated 2026-11-24): all labels must come from ONE
+teacher — now `gemini-3.5-flash`, prompt v2; never mix models in one labelling. If a run fails on 503, do not retry the same day; retry in the
 morning, 08:00–11:00 Almaty time (night in the US, less load). The run resumes from the cache.
 2026-11-23 evening: two attempts (22:15, 22:38) stopped on the first request with 503; 10 of 177
 ads labelled (the trial ads). Scheduled app task `aldau-teacher-morning-run` resumes the run on
 2026-11-24 at 08:30 Almaty, retrying every 30 min until 11:00 (runs only if the Claude app is open).
+
+2026-11-24: the scheduled task never labelled anything — the 08:30 and 22:47 runs stopped on a
+permission prompt nobody answered (task ran in default mode); the 01:13 run got 503 x5. The 22:47
+and 01:13 runs broke the "not the same day" rule (likely triggered by "Run now", which I had
+suggested for pre-approval). **Owner's decision 2026-11-24: no more scheduled tasks; the owner
+starts runs himself.**
+
+**Teacher change (owner, 2026-11-24):** `gemini-3.8-flash` gave 503 on every attempt since
+2026-11-19 evening, so the teacher becomes `gemini-3.7-flash`, or `gemini-3.5-flash` if that is
+overloaded — and ALL ads are relabelled with the new teacher (one teacher for all labels still
+holds; the 20 cached answers of 3.8-flash stay in the cache only as history). Same day: 3.7-flash
+503 x5 on a 5-ad probe -> `.env` now `LLM_MODEL=gemini-3.5-flash`; 3.5-flash 503 x5 on a 5-ad
+batch, but diagnostic requests succeeded (tiny prompt 2 s; tiny prompt + schema 8 s; real prompt
+for 1 ad + schema 9 s, ~400 thinking tokens). The 503s hit heavy (multi-ad) requests; smaller
+batches are the next step (needs the owner's ok: more requests).
 
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
