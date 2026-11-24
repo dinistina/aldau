@@ -197,6 +197,8 @@ run (34 requests, `--batch-size 5`) waits for the owner's "ok".
 
 | 2026-11-23 | Owner's last 3 gold decisions (b951640564f2 -> scam; 23bb71cac21d, 94ef27cd90a1 -> legit) were made in the OLD folder `F:\aldau` by mistake; re-applied in `F:\projects\aldau` with the owner's reasons verbatim. Gold now 29 scam / 71 legit, 6 with t, 7 logged changes. Only 1 real scam in gold (kitchen set, t): origin still decides the label (case_based 100 % scam, real 1 %). **Work only in `F:\projects\aldau`; `F:\aldau` is stale** | done |
 
+| 2026-11-24 | Data import `data/inbox3.txt`: +20 live suspicious OLX ads (label `unknown`, origin `real`, `source_note` = ad link; 9 daily rents, 4 phones, 2 laptops, 2 rents, 3 cars «рассрочка с предоплатой»; 3 kk; Krisha blocked by captcha). 4 header/text price gaps are bait prices, added to `data/price_ok.txt`. Now 197 ads | done |
+
 Full teacher run rule (owner, 2026-11-23, teacher updated 2026-11-24): all labels must come from ONE
 teacher — now `gemini-3.5-flash`, prompt v2; never mix models in one labelling. If a run fails on 503, do not retry the same day; retry in the
 morning, 08:00–11:00 Almaty time (night in the US, less load). The run resumes from the cache.
