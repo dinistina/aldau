@@ -228,6 +228,13 @@ stop) or `OverloadedError` (5xx/timeouts after retries); `teacher.label_ads` ski
 batch (it stays uncached, asked again next run) and stops only after 3 overloads in a row,
 on quota, or on permanent errors.
 
+2026-11-25, second run: the very first request got 503 x2, then 429 "You exceeded your current
+quota" (free-tier daily request limit for gemini-3.5-flash; exact number unknown, it seems small —
+about 20 requests had been sent that day incl. retries). Stopped per the owner's rule; 16 of 197
+ads labelled. At ~20 requests/day, batch 1 needs ~10 days -> raised with the owner (options:
+billing on the Google project, batch 5, another provider). `TELEGRAM_BOT_TOKEN` placed in `.env`
+(owner's request).
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 
