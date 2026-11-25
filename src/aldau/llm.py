@@ -36,8 +36,20 @@ class LLMError(Exception):
     """A permanent problem: bad settings, bad key, unusable answer, or retries exhausted."""
 
 
+class QuotaError(LLMError):
+    """Retries exhausted on 429: the request limit is used up. Stop, come back later."""
+
+
+class OverloadedError(LLMError):
+    """Retries exhausted on 5xx / timeouts: the server is busy; the next request may pass."""
+
+
 class RetryableError(Exception):
     """A temporary problem (rate limit, server overload): worth waiting and trying again."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status  # HTTP status (429, 503, ...) or None for timeouts / network
 
 
 def get_settings() -> tuple[str, str]:
@@ -107,7 +119,7 @@ def _call_gemini(prompt: str, schema: type[BaseModel], model: str) -> str:
         # Only the status code and the API's message are shown: never the key.
         message = f"Gemini: ошибка {error.code}: {error.message}"
         if error.code in RETRY_STATUS:
-            raise RetryableError(message) from error
+            raise RetryableError(message, status=error.code) from error
         raise LLMError(message) from error
     except Exception as error:
         if is_network_problem(error):
@@ -158,7 +170,10 @@ def complete_json(
             break
         except RetryableError as error:
             if attempt == MAX_RETRIES:
-                raise LLMError(f"{error} — не помогли {MAX_RETRIES} повтора") from error
+                message = f"{error} — не помогли {MAX_RETRIES} повтора"
+                if error.status == 429:
+                    raise QuotaError(message) from error
+                raise OverloadedError(message) from error
             wait = FIRST_WAIT_SECONDS * 2**attempt
             log(f"  {error}; жду {wait} с и пробую снова ({attempt + 1}/{MAX_RETRIES})")
             sleep(wait)

@@ -52,7 +52,8 @@ def ads_in(prompt):
 class FakeTeacher:
     """Stand-in for llm.complete_json: answers every batch, can fail on a chosen request."""
 
-    def __init__(self, fail_on=None):
+    def __init__(self, fail_on=None, overloaded_on=()):
+        self.overloaded_on = set(overloaded_on)
         self.prompts = []
         self.fail_on = fail_on
 
@@ -60,7 +61,9 @@ class FakeTeacher:
         assert schema is TeacherBatch
         self.prompts.append(prompt)
         if len(self.prompts) == self.fail_on:
-            raise llm.LLMError("ошибка 429: дневной лимит исчерпан")
+            raise llm.QuotaError("ошибка 429: дневной лимит исчерпан")
+        if len(self.prompts) in self.overloaded_on:
+            raise llm.OverloadedError("ошибка 503: high demand")
         items = ads_in(prompt)
         return {
             "results": [
@@ -161,6 +164,30 @@ def test_run_stops_on_api_error_and_resumes_later(tmp_path):
     report = run(ads, tmp_path, teacher, batch_size=2)
     assert len(teacher.prompts) == 2  # the remaining 4 ads, not all 6
     assert len(read_cache(tmp_path / "cache.jsonl")) == 6
+
+
+def test_overloaded_request_is_skipped_and_the_run_goes_on(tmp_path):
+    ads = [make_ad(n) for n in range(4)]
+    report = run(ads, tmp_path, FakeTeacher(overloaded_on={2}), batch_size=1)
+    assert not report.stopped_early
+    assert len(report.labelled) == 3  # the 2nd ad was skipped
+    assert "пропущен" in report.problems[0]
+    teacher = FakeTeacher()
+    run(ads, tmp_path, teacher, batch_size=1)
+    assert len(teacher.prompts) == 1  # next run asks only the skipped ad
+
+
+def test_run_stops_after_three_overloads_in_a_row(tmp_path):
+    ads = [make_ad(n) for n in range(6)]
+    report = run(ads, tmp_path, FakeTeacher(overloaded_on={2, 3, 4}), batch_size=1)
+    assert report.stopped_early
+    assert len(report.labelled) == 1  # only the 1st; stopped at the 4th request
+
+
+def test_quota_error_stops_at_once(tmp_path):
+    ads = [make_ad(n) for n in range(4)]
+    report = run(ads, tmp_path, FakeTeacher(fail_on=2), batch_size=1)
+    assert report.stopped_early and len(report.labelled) == 1
 
 
 def test_labels_of_another_model_are_not_reused(tmp_path):

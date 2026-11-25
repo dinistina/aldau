@@ -221,6 +221,13 @@ batch, but diagnostic requests succeeded (tiny prompt 2 s; tiny prompt + schema 
 for 1 ad + schema 9 s, ~400 thinking tokens). The 503s hit heavy (multi-ad) requests; smaller
 batches are the next step (needs the owner's ok: more requests).
 
+2026-11-25: owner chose `--batch-size 1` (more reliable; each ad judged independently, no
+influence from neighbouring ads in the prompt). First run: 16 of 197 ads labelled, then one ad
+hit 503 x5 and the whole run stopped. Fix: `llm` now raises `QuotaError` (429 after retries:
+stop) or `OverloadedError` (5xx/timeouts after retries); `teacher.label_ads` skips an overloaded
+batch (it stays uncached, asked again next run) and stops only after 3 overloads in a row,
+on quota, or on permanent errors.
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 

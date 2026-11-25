@@ -45,6 +45,7 @@ REPORT_PATH = Path("reports/teacher_check.md")
 BATCH_SIZE = 10
 DEFAULT_LIMIT = 10  # cost guard: a small default, raise it on purpose
 PAUSE_SECONDS = 5.0  # between requests, to stay under the free tier's per-minute limit
+MAX_OVERLOADED_IN_A_ROW = 3  # skip a busy-server batch, but stop if it happens 3 times in a row
 
 
 # --- answer shape ------------------------------------------------------------------
@@ -277,17 +278,30 @@ def label_ads(
     todo = [ad for ad in ads if cache_key(ad, model) not in cache]
     batches = [todo[i : i + batch_size] for i in range(0, len(todo), batch_size)]
 
+    overloaded_in_a_row = 0
     for number, batch in enumerate(batches, start=1):
         if number > 1:
             sleep(pause)
         log(f"Запрос {number}/{len(batches)}: {len(batch)} объявл.")
         try:
             answer = ask(build_prompt(batch, prices), TeacherBatch)
-        except llm.LLMError as error:
+        except llm.OverloadedError as error:
+            # The server is busy right now: skip this batch (it stays uncached and is
+            # asked again next run) and go on — unless it keeps happening.
+            report.problems.append(f"запрос {number}: пропущен — {error}")
+            overloaded_in_a_row += 1
+            if overloaded_in_a_row >= MAX_OVERLOADED_IN_A_ROW:
+                report.stopped_early = True
+                log(f"  Остановка: {overloaded_in_a_row} перегрузки подряд. Размеченное — в кеше.")
+                break
+            log("  Пропущено (сервер перегружен), иду дальше.")
+            continue
+        except llm.LLMError as error:  # daily limit (QuotaError), bad key, ...: stop
             report.problems.append(f"запрос {number}: {error}")
             report.stopped_early = True
             log(f"  Остановка: {error}. Уже размеченное сохранено в кеше.")
             break
+        overloaded_in_a_row = 0
         report.requests += 1
         labels, problems = parse_batch(answer, batch)
         report.problems += [f"запрос {number}: {p}" for p in problems]

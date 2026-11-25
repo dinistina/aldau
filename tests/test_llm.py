@@ -55,10 +55,14 @@ def test_retries_temporary_errors_with_growing_pause(monkeypatch):
     assert len(provider.calls) == 3
 
 
-def test_gives_up_after_max_retries(monkeypatch):
-    errors = [llm.RetryableError("429")] * (llm.MAX_RETRIES + 1)
+@pytest.mark.parametrize(
+    "status, error_class",
+    [(429, llm.QuotaError), (503, llm.OverloadedError), (None, llm.OverloadedError)],
+)
+def test_gives_up_after_max_retries_with_the_right_error(monkeypatch, status, error_class):
+    errors = [llm.RetryableError("busy", status=status)] * (llm.MAX_RETRIES + 1)
     monkeypatch.setitem(llm.PROVIDERS, "gemini", fake_provider(errors))
-    with pytest.raises(llm.LLMError, match="не помогли"):
+    with pytest.raises(error_class, match="не помогли"):
         llm.complete_json("p", Answer, sleep=lambda s: None, log=lambda m: None)
 
 
