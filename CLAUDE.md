@@ -235,6 +235,15 @@ ads labelled. At ~20 requests/day, batch 1 needs ~10 days -> raised with the own
 billing on the Google project, batch 5, another provider). `TELEGRAM_BOT_TOKEN` placed in `.env`
 (owner's request).
 
+**Owner's decisions 2026-11-25 (no billing; stay on the free key):**
+- Phase 5 starts now without waiting for the teacher: the baseline trains on the OWNER's import
+  labels; gold is never used for training, only for evaluation. Report it as a small prototype.
+- Teacher labelling continues in the background, ~20 requests/day, started by the owner; it is
+  for the "teacher vs human" comparison after the EXPO.
+- In the bot the teacher is used only for the cascade grey zone, with a timeout; if the quota is
+  used up, the bot answers with the student + regex signals and never crashes.
+Phase 5 plan shown 2026-11-25, waiting for "ok".
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 
