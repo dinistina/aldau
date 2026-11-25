@@ -109,6 +109,29 @@ def test_train_picks_settings_by_cross_validation_and_records_them():
     assert 0 <= model.threshold <= 1
 
 
+def test_forced_mode_is_saved_and_the_cv_choice_is_kept():
+    model, _ = train(toy_data(copies=4), modes=["text", "features"], force_mode="features")
+    assert model.mode == "features"
+    assert model.info["chosen_by"] == "owner_after_gold"
+    assert model.info["cv_choice"]["mode"] in ("text", "features")
+    plain, _ = train(toy_data(copies=4), modes=["text", "features"])
+    assert plain.info["chosen_by"] == "cv"
+    assert plain.mode == plain.info["cv_choice"]["mode"]
+
+
+def test_saved_model_loads_in_a_fresh_python_process(tmp_path):
+    """The bot loads the model in another process: the class must be pickled by its real
+    module name, not as __main__.BaselineModel."""
+    import subprocess
+    import sys
+
+    path = tmp_path / "m.joblib"
+    save(BaselineModel(mode="features").fit(toy_data(copies=1)), path)
+    code = f"from aldau.train_baseline import load; print(load(r'{path}').mode)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "features"
+
+
 def test_save_and_load_give_the_same_risk(tmp_path):
     data = toy_data()
     model = BaselineModel(mode="both").fit(data)

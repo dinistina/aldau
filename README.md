@@ -11,8 +11,28 @@ The idea is knowledge distillation: a large LLM (the *teacher*) labels ads, a sm
 (the *student*) learns from those labels, and at inference the student asks the teacher only when
 it is unsure.
 
-**Status:** work in progress — project skeleton only. See [docs/PLAN.md](docs/PLAN.md) (in Russian)
-for the roadmap.
+**Status:** work in progress — a baseline student prototype exists, the Telegram bot is next.
+See [docs/PLAN.md](docs/PLAN.md) (in Russian) for the roadmap.
+
+## Current results (baseline prototype, 2026-11-26)
+
+TF-IDF on character n-grams + hand-made fraud signals → logistic regression, trained on 74
+human-labelled ads (the teacher's labels are not ready yet: free-tier quota). Full report:
+[reports/baseline.md](reports/baseline.md).
+
+| variant | how it was chosen | gold recall, all scam | gold recall, real scam | gold precision |
+|---|---|---|---|---|
+| text only | **cross-validation on train (honest result)** | 0.81 | 0.22 (2 of 9) | 0.97 |
+| text + signals | **by the owner after looking at gold (used in the demo)** | 0.84 | 0.78 (7 of 9) | 0.79 |
+
+- **The demo variant was chosen after looking at the gold results**, so its gold numbers are
+  optimistic: the test set was used for a decision. The honest, pre-registered result is the
+  cross-validated "text only" model.
+- **Main reason for the gap:** the training set has no real scam ads — every scam example is a
+  rewritten case, every legit example is a real ad. The text model learned the rewriting style,
+  not the fraud scheme (shortcut learning), so it misses real scam ads.
+- A clean check of the demo variant needs a new test set of live ads that nobody has looked at
+  yet (planned after the EXPO).
 
 ## Development
 

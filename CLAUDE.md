@@ -254,6 +254,12 @@ recall 0.89 but overall precision 0.67; `both`: real recall 0.78, precision 0.79
 Choosing the variant for the demo after looking at gold would use gold for selection — the
 owner decides; the pre-registered (CV-chosen) result is `text`.
 
+| 2026-11-26 | Demo student chosen by the owner: `both` (text + features), chosen AFTER looking at gold — stated in `reports/baseline.md` and README next to the honest CV result (`text`); reason: no real scam in training, the text model learned the style. `train_baseline --mode` (default `both`), report shows both. Bug fixed: `python -m aldau.train_baseline` pickled `__main__.BaselineModel`, so no other program could load the model. PLAN: clean test set of 20–30 live ads after the EXPO | done |
+
+Demo model on gold (optimistic, gold used for the choice): all — P 0.79, R 0.84; real scam recall
+0.78 (7 of 9), real precision 0.47. All 8 false alarms are legit ads with a booking prepayment
+(6 daily rents, a car dealer, phone numbers), risk 0.93–1.00 — the bot must handle this hard negative.
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 

@@ -2,6 +2,7 @@
 
 Run from the project root:
     python -m aldau.train_baseline   # train, save models/baseline.joblib, write reports/baseline.md
+    python -m aldau.train_baseline --mode text   # save the CV winner instead of the demo choice
 
 Training data: ads from data/raw with the OWNER's labels (scam / legit from the inbox
 headers). Every gold ad is removed — and so is every near-copy of a gold ad — because
@@ -34,6 +35,9 @@ from aldau.schema import Ad
 MODEL_PATH = Path("models/baseline.joblib")
 REPORT_PATH = Path("reports/baseline.md")
 MODES = ["text", "features", "both"]  # what the model sees
+# The owner's choice for the demo (2026-11-26), made AFTER looking at gold: the text-only
+# CV winner caught 2 of 9 real scam ads, text + features 7 of 9. See reports/baseline.md.
+DEMO_MODE = "both"
 C_VALUES = [0.1, 0.3, 1.0, 3.0, 10.0]  # regularisation strengths tried in cross-validation
 NEAR_DUPLICATE = 0.8  # word overlap (Jaccard) above which two ads count as copies
 SEED = 42
@@ -184,10 +188,16 @@ def best_threshold(risk: np.ndarray, is_scam: np.ndarray) -> float:
     return best
 
 
-def train(train_ads: list[Ad], modes: list[str] = MODES) -> tuple[BaselineModel, list[dict]]:
+def train(
+    train_ads: list[Ad], modes: list[str] = MODES, force_mode: str | None = None
+) -> tuple[BaselineModel, list[dict]]:
     """Pick mode and C by out-of-fold PR-AUC on the training ads, then fit on all of them.
 
     Returns the final model and the CV table. Gold is not involved in any choice here.
+
+    force_mode: use this mode instead of the CV winner (C and threshold still come from
+    CV on train). The owner chose "both" for the demo AFTER looking at gold, so the
+    model records both choices and the report states it honestly.
     """
     y = np.array([ad.label == "scam" for ad in train_ads], dtype=int)
     table = []
@@ -196,7 +206,11 @@ def train(train_ads: list[Ad], modes: list[str] = MODES) -> tuple[BaselineModel,
             risk = out_of_fold_risk(train_ads, mode, c)
             table.append({"mode": mode, "c": c, "pr_auc": average_precision_score(y, risk),
                           "risk": risk})  # fmt: skip
-    best = max(table, key=lambda row: row["pr_auc"])
+    cv_best = max(table, key=lambda row: row["pr_auc"])
+    best = cv_best
+    if force_mode:
+        best = max((row for row in table if row["mode"] == force_mode),
+                   key=lambda row: row["pr_auc"])  # fmt: skip
     model = BaselineModel(mode=best["mode"], c=best["c"])
     model.threshold = best_threshold(best["risk"], y)
     model.fit(train_ads)
@@ -214,7 +228,10 @@ def train(train_ads: list[Ad], modes: list[str] = MODES) -> tuple[BaselineModel,
         "train_labels": dict(Counter(ad.label for ad in train_ads)),
         "train_origin": dict(Counter(f"{ad.origin}/{ad.label}" for ad in train_ads)),
         "cv": summary,
-    }
+        "chosen_by": "owner_after_gold" if force_mode else "cv",
+        "cv_choice": {"mode": cv_best["mode"], "c": cv_best["c"], "pr_auc": cv_best["pr_auc"],
+                      "threshold": best_threshold(cv_best["risk"], y)},
+    }  # fmt: skip
     return model, summary
 
 
@@ -233,9 +250,13 @@ def load(path: Path = MODEL_PATH) -> BaselineModel:
 def main() -> None:
     from aldau.evaluate import gold_report, print_worst_misses  # avoid an import cycle
 
-    argparse.ArgumentParser(
-        description="Train the baseline student and check it on gold."
-    ).parse_args()
+    parser = argparse.ArgumentParser(description="Train the baseline student and check it on gold.")
+    parser.add_argument(
+        "--mode", choices=MODES, default=DEMO_MODE,
+        help=f"what the saved model sees (default {DEMO_MODE}: the owner's demo choice, made "
+             "after looking at gold; the CV winner is reported next to it)",
+    )  # fmt: skip
+    args = parser.parse_args()
     raw, gold = read_ads(RAW_PATH), read_ads(GOLD_PATH)
     train_ads, dropped = split_train_gold(raw, gold)
     assert_no_overlap(train_ads, gold)
@@ -243,11 +264,13 @@ def main() -> None:
         f"Обучение: {len(train_ads)} объявлений {dict(Counter(ad.label for ad in train_ads))}; "
         f"убрано почти-копий gold: {len(dropped)}; gold: {len(gold)}"
     )
-    model, summary = train(train_ads)
+    model, summary = train(train_ads, force_mode=args.mode)
     model.info["dropped_near_copies"] = len(dropped)
     for row in summary:
         print(f"  CV {row['mode']:<8} C={row['c']:<4} PR-AUC {row['pr_auc']:.2f}")
-    print(f"Выбрано по CV на train: mode={model.mode}, C={model.c}, порог {model.threshold:.2f}")
+    cv = model.info["cv_choice"]
+    print(f"Выбрано по CV на train: mode={cv['mode']}, C={cv['c']}, порог {cv['threshold']:.2f}")
+    print(f"Сохраняется: mode={model.mode}, C={model.c}, порог {model.threshold:.2f}")
     save(model)
     report = gold_report(model, gold, train_ads)
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -258,4 +281,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Run main() from the module imported under its real name. Otherwise the saved model
+    # would be pickled as "__main__.BaselineModel" and no other program (bot, evaluate,
+    # offline demo) could load it.
+    from aldau.train_baseline import main as real_main
+
+    real_main()

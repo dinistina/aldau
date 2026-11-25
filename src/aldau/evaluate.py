@@ -144,18 +144,44 @@ def gold_report(model, gold: list[Ad], train_ads: list[Ad]) -> str:
         lines.append(
             f"| {row['mode']} | {row['c']} | {row['pr_auc']:.2f} | {row['threshold']:.2f} |"
         )
+    cv = info.get("cv_choice", {"mode": model.mode, "c": model.c, "threshold": model.threshold})
+    after_gold = info.get("chosen_by") == "owner_after_gold" and cv["mode"] != model.mode
     lines += [
         "",
-        f"Выбрано: **{model.mode}**, C = {model.c}, порог {model.threshold:.2f} "
-        "(по PR-AUC на train; gold в выборе не участвовал).",
+        f"Кросс-валидация на train выбрала: **{cv['mode']}**, C = {cv['c']}, "
+        f"порог {cv['threshold']:.2f} (gold в этом выборе не участвовал).",
         "",
-        "## Результат на gold",
+    ]
+    if after_gold:
+        cv_model = BaselineModel(mode=cv["mode"], c=cv["c"], threshold=cv["threshold"])
+        cv_risk = cv_model.fit(train_ads).risk(gold)
+        lines += [
+            f"**Для демо сохранён другой вариант — {model.mode}** (C = {model.c}, порог "
+            f"{model.threshold:.2f}; C и порог — тоже по CV на train). Его выбрал владелец "
+            "**после просмотра результатов на gold**, поэтому цифры этого варианта на gold "
+            "оптимистичны: gold использован для выбора. Честный результат (выбор только по CV) — "
+            f"вариант **{cv['mode']}**, он ниже. Главная причина расхождения: в обучении нет "
+            "настоящих scam, и текстовая модель выучила стиль пересказа, а не схему обмана. "
+            "Чистая проверка демо-варианта — на новом тестовом наборе живых объявлений "
+            "(план после EXPO).",
+            "",
+            f"## Честный результат на gold (вариант {cv['mode']}, выбран CV)",
+            "",
+            *metrics_table(cv_risk, gold, cv["threshold"]),
+            "",
+            *recall_with_and_without_t(cv_risk, gold, cv["threshold"]),
+            "",
+            f"## Демо-вариант на gold ({model.mode}, выбран после просмотра gold)",
+        ]
+    else:
+        lines.append("## Результат на gold")
+    lines += [
         "",
         *metrics_table(risk, gold, model.threshold),
         "",
         *recall_with_and_without_t(risk, gold, model.threshold),
         "",
-        "## Сравнение вариантов на gold (для понимания, не для выбора)",
+        "## Сравнение вариантов на gold",
         "",
         "| вариант | PR-AUC все | recall все | precision все | PR-AUC real | recall real scam |",
         "|---|---|---|---|---|---|",
