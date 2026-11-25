@@ -242,7 +242,17 @@ billing on the Google project, batch 5, another provider). `TELEGRAM_BOT_TOKEN` 
   for the "teacher vs human" comparison after the EXPO.
 - In the bot the teacher is used only for the cascade grey zone, with a timeout; if the quota is
   used up, the bot answers with the student + regex signals and never crashes.
-Phase 5 plan shown 2026-11-25, waiting for "ok".
+Phase 5 plan shown 2026-11-25, "ok" given 2026-11-26.
+
+| 2026-11-26 | Phase 5 baseline prototype — `train_baseline.py` (train = owner's import labels minus gold and near-copies of gold (Jaccard ≥ 0.8), char_wb TF-IDF 2–5 + Phase 2 features, LogisticRegression balanced; mode/C/threshold chosen by 5-fold CV on train only), `evaluate.py` (gold metrics by slice, recall with/without t, variant comparison, latency, worst misses; `reports/baseline.md` ids only), `student.py` (`predict_text`). CI installs the `ml` group. 254 tests pass | done |
+
+Phase 5 results (train 74 ads: 17 scam all case_based, 57 legit all real; gold 120: 37 scam, 9 of
+them real): CV chose `text` (PR-AUC 0.97, C=10, threshold 0.40). On gold: all — precision 0.97,
+recall 0.81, PR-AUC 0.96; **case_based recall 1.00 but real scam recall 0.22 (2 of 9)** — the
+text model learned the rewriting style (shortcut). Variant `features` (regex + price): real scam
+recall 0.89 but overall precision 0.67; `both`: real recall 0.78, precision 0.79. Latency ~1 ms.
+Choosing the variant for the demo after looking at gold would use gold for selection — the
+owner decides; the pre-registered (CV-chosen) result is `text`.
 
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
