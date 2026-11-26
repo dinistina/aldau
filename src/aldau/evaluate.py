@@ -97,6 +97,65 @@ def recall_with_and_without_t(risk: np.ndarray, gold: list[Ad], threshold: float
     ]
 
 
+def ad_signals(ad: Ad) -> list[str]:
+    return [s for s in find_signals(ad.title + "\n" + ad.text) if s != "has_phone"]
+
+
+def levels_section(model, gold: list[Ad], risk: np.ndarray) -> list[str]:
+    """How the bot's levels 🟢/🟡/🔴 (student only, no teacher) fall on gold,
+    without and with the rule floor for known schemes (cascade.SCHEME_FLOORS)."""
+    from aldau.cascade import level_for  # local import: cascade imports this package's model
+
+    signals = [ad_signals(ad) for ad in gold]
+    def pick(label: str, origin: str | None = None) -> list[int]:
+        return [i for i, ad in enumerate(gold)
+                if ad.label == label and (origin is None or ad.origin == origin)]  # fmt: skip
+
+    groups = [
+        ("scam, все", pick("scam")),
+        ("scam, real", pick("scam", "real")),
+        ("scam, case_based", pick("scam", "case_based")),
+        ("legit", pick("legit")),
+    ]
+    lines = [
+        "## Уровни ответа бота на gold: без правил и с правилами (без учителя)",
+        "",
+        "Правила — «пол уровня» для известных схем из промпта учителя (`cascade.SCHEME_FLOORS`): "
+        "оплата по ссылке с вводом карты → 🔴; товар из-за границы / на таможне, продавец не "
+        "может встретиться, обещает прислать документы, давление «желающих много» → минимум 🟡. "
+        "Список взят из промпта учителя, а не из ошибок на gold.",
+        "",
+        "| группа | n | без правил 🟢 / 🟡 / 🔴 | с правилами 🟢 / 🟡 / 🔴 |",
+        "|---|---|---|---|",
+    ]
+    levels = {}
+    for rules in (False, True):
+        levels[rules] = [level_for(r, model.threshold, s, rules) for r, s in zip(risk, signals,
+                                                                                    strict=True)]
+    for name, idx in groups:
+        cells = []
+        for rules in (False, True):
+            counts = [sum(levels[rules][i] == lv for i in idx) for lv in ("green", "yellow", "red")]
+            cells.append(" / ".join(map(str, counts)))
+        lines.append(f"| {name} | {len(idx)} | {cells[0]} | {cells[1]} |")
+    lines += ["", "| | без правил | с правилами |", "|---|---|---|"]
+    scam_idx, legit_idx = groups[0][1], groups[3][1]
+    real_idx = groups[1][1]
+
+    def share(idx: list[int], rules: bool, wanted: tuple[str, ...]) -> str:
+        n = sum(levels[rules][i] in wanted for i in idx)
+        return f"{fmt(n / len(idx)) if idx else '—'} ({n} из {len(idx)})"
+
+    for title, wanted in (("🔴", ("red",)), ("🟡 или 🔴", ("yellow", "red"))):
+        lines.append(f"| scam с уровнем {title} | {share(scam_idx, False, wanted)} "
+                     f"| {share(scam_idx, True, wanted)} |")  # fmt: skip
+        lines.append(f"| настоящие scam с уровнем {title} | {share(real_idx, False, wanted)} "
+                     f"| {share(real_idx, True, wanted)} |")  # fmt: skip
+        lines.append(f"| legit с уровнем {title} (ложная тревога) "
+                     f"| {share(legit_idx, False, wanted)} | {share(legit_idx, True, wanted)} |")
+    return lines + [""]
+
+
 def latency_ms(model, gold: list[Ad], repeats: int = 1) -> float:
     """Median time to score ONE ad, in milliseconds (as the bot would do it)."""
     times = []
@@ -199,8 +258,8 @@ def gold_report(model, gold: list[Ad], train_ads: list[Ad]) -> str:
             f"| {fmt(m_all['precision'])} | {fmt(m_real['pr_auc'])} | {fmt(m_real['recall'])} |"
         )
     misses = worst_misses(model, gold, risk)
+    lines += ["", *levels_section(model, gold, risk)]
     lines += [
-        "",
         f"Время на одно объявление: **{latency_ms(model, gold):.1f} мс** (медиана, CPU).",
         "",
         "## Худшие ошибки (id; тексты — в консоли, в отчёт не попадают)",

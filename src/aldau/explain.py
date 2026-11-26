@@ -84,7 +84,11 @@ def score_line(result: CheckResult) -> str:
 
 def format_answer(result: CheckResult, pending_teacher: bool = False) -> str:
     """Plain text (no HTML/Markdown), so nothing in the ad can break the formatting."""
-    lines = [HEADERS[result.level], score_line(result), "", "Почему:"]
+    lines = [HEADERS[result.level], score_line(result)]
+    if result.rule and not result.teacher:
+        scheme = SIGNAL_DESCRIPTIONS_RU[result.rule]
+        lines.append(f"Уровень поднят правилом: известная схема — {scheme}")
+    lines += ["", "Почему:"]
     lines += [f"• {reason}" for reason in reasons(result)]
     lines += ["", "Что проверить:"]
     lines += [f"• {tip}" for tip in advice(result)]

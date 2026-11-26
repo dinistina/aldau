@@ -268,6 +268,14 @@ daily rent from an ИП with 50 % booking -> 🔴 0.91; iPhone "OLX delivery lin
 `prepayment` +3.13); Kazakh "алдын ала 30 % төлем" -> 🟢 0.01 (the kk prepayment regex does not allow
 a number inside the phrase). Proposed to the owner: a rule floor for known schemes + the kk regex fix.
 
+| 2026-11-26 | Owner approved both fixes. `cascade.SCHEME_FLOORS` (list from the teacher prompt, not from gold errors): `fake_delivery` -> 🔴; `from_abroad`, `remote_seller`, `sends_documents`, `pressure` -> at least 🟡 (deposit, urgency, messenger, prepayment have no floor); the answer says "Уровень поднят правилом". kk prepayment regex allows up to 3 words inside ("алдын ала 30 % төлем"). Model retrained; `reports/baseline.md` has a levels table with and without rules | done |
+
+Results 2026-11-26: student metrics on gold unchanged by the regex fix. Rules on gold (no teacher):
+scam 🟡/🔴 0.92 -> 0.97 (34 -> 36 of 37; real 8 of 9 both ways), legit false 🔴 8 -> 10 of 83, legit 🟡/🔴
+9 -> 13 of 83. The 2 new false 🔴 are car dealers: the `fake_delivery` regex matches «гарантия
+безопасности сделки» (found on gold, so NOT fixed without the owner's decision). Demo ads: 3 of 6 -> 5 of 6
+(only the honest ИП daily rent stays 🔴 0.91).
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 

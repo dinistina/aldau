@@ -37,6 +37,21 @@ from aldau.teacher import (
 )
 from aldau.train_baseline import BaselineModel
 
+# Rule floor (owner's decision 2026-11-26): known scam schemes from the teacher's prompt
+# (teacher.INSTRUCTIONS, "Типичные схемы") raise the level to at least this, whatever the
+# student's risk. The student learned from 74 ads and knows only what was frequent there
+# (e.g. "оплата по ссылке" is in 2 training ads), so expert rules cover rare schemes.
+# Not in the list on purpose — the prompt says they are NOT a scam by themselves:
+# deposit, urgency, messenger. Prepayment is left to the model: honest bookings use it too.
+SCHEME_FLOORS = {
+    "fake_delivery": "red",  # card details on a link from the seller: always a scheme
+    "from_abroad": "yellow",  # "из Кореи", "на таможне" — honest importers exist too
+    "remote_seller": "yellow",  # "хозяин в другом городе", "отправлю почтой"
+    "sends_documents": "yellow",  # "пришлю фото удостоверения"
+    "pressure": "yellow",  # "желающих много, кто первый оплатит"
+}
+LEVEL_ORDER = ["green", "yellow", "red"]
+
 GREEN_BELOW = 0.35  # student risk below this is "low risk"
 TEACHER_GREEN_BELOW = 0.4  # the teacher's own scale (prompt v2): 0.15–0.4 = "one weak sign"
 TEACHER_RED_FROM = 0.7  # prompt v2: 0.7–1.0 = "a recognisable scam scheme"
@@ -66,6 +81,7 @@ class CheckResult:
     signals: list[str] = field(default_factory=list)  # regex signals found in the text
     teacher: TeacherLabel | None = None  # the teacher's answer, if it was asked and answered
     note: str | None = None  # why the teacher's answer is missing, if it was needed
+    rule: str | None = None  # the scheme signal that raised the level (SCHEME_FLOORS), if any
 
     @property
     def level(self) -> str:
@@ -83,6 +99,25 @@ def student_level(risk: float, threshold: float) -> str:
     return "green" if risk < GREEN_BELOW else "yellow"
 
 
+def apply_floor(level: str, signals: list[str]) -> tuple[str, str | None]:
+    """Raise the level to the strongest floor among the found scheme signals.
+
+    Returns (level, the signal that raised it or None if the level did not change).
+    """
+    best, rule = level, None
+    for signal in signals:
+        floor = SCHEME_FLOORS.get(signal)
+        if floor and LEVEL_ORDER.index(floor) > LEVEL_ORDER.index(best):
+            best, rule = floor, signal
+    return best, rule
+
+
+def level_for(risk: float, threshold: float, signals: list[str], rules: bool = True) -> str:
+    """The student's level for an ad, with or without the rule floor (used in reports)."""
+    level = student_level(risk, threshold)
+    return apply_floor(level, signals)[0] if rules else level
+
+
 def teacher_level(risk: float) -> str:
     if risk >= TEACHER_RED_FROM:
         return "red"
@@ -95,11 +130,15 @@ def check_student(
     price_kzt: int | None = None,
     category: str = "другое",
     city: str | None = None,
+    rules: bool = True,
 ) -> CheckResult:
-    """Step 1, always local and instant (~1 ms)."""
+    """Step 1, always local and instant (~1 ms): student risk -> level -> rule floor."""
     ad = predict_ad_from_text(text, price_kzt=price_kzt, category=category, city=city)
     result = predict(model, ad)
-    return CheckResult(ad, result.risk, student_level(result.risk, model.threshold), result.signals)
+    level, rule = student_level(result.risk, model.threshold), None
+    if rules:
+        level, rule = apply_floor(level, result.signals)
+    return CheckResult(ad, result.risk, level, result.signals, rule=rule)
 
 
 # --- the daily teacher budget ----------------------------------------------------------

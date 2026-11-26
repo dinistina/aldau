@@ -65,6 +65,43 @@ def test_teacher_level_uses_the_prompt_scale(risk, level):
     assert cascade.teacher_level(risk) == level
 
 
+# --- the rule floor ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "level, signals, expected",
+    [("green", ["fake_delivery"], ("red", "fake_delivery")),
+     ("green", ["from_abroad", "messenger"], ("yellow", "from_abroad")),
+     ("green", ["remote_seller", "fake_delivery"], ("red", "fake_delivery")),
+     ("red", ["remote_seller"], ("red", None)),  # a floor never lowers the level
+     ("green", ["messenger", "urgency", "deposit", "prepayment"], ("green", None))],
+)  # fmt: skip
+def test_apply_floor(level, signals, expected):
+    assert cascade.apply_floor(level, signals) == expected
+
+
+def test_floor_signals_are_real_signal_names():
+    from aldau.features import SIGNAL_NAMES
+
+    assert set(cascade.SCHEME_FLOORS) <= set(SIGNAL_NAMES)
+    assert not {"deposit", "urgency", "messenger"} & set(cascade.SCHEME_FLOORS)
+
+
+def test_check_student_applies_the_floor_and_can_skip_it(model):
+    text = "Продаю телефон, оплата через OLX доставку, введите данные карты по ссылке"
+    with_rules = cascade.check_student(model, text)
+    assert with_rules.student_level == "red" and with_rules.rule == "fake_delivery"
+    assert "Уровень поднят правилом" in format_answer(with_rules)
+    without = cascade.check_student(model, text, rules=False)
+    assert without.rule is None
+    assert without.student_level == cascade.student_level(without.student_risk, 0.73)
+
+
+def test_level_for():
+    assert cascade.level_for(0.1, 0.73, ["fake_delivery"]) == "red"
+    assert cascade.level_for(0.1, 0.73, ["fake_delivery"], rules=False) == "green"
+
+
 # --- the cascade --------------------------------------------------------------------------
 
 
