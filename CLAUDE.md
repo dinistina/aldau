@@ -260,6 +260,14 @@ Demo model on gold (optimistic, gold used for the choice): all — P 0.79, R 0.8
 0.78 (7 of 9), real precision 0.47. All 8 false alarms are legit ads with a booking prepayment
 (6 daily rents, a car dealer, phone numbers), risk 0.93–1.00 — the bot must handle this hard negative.
 
+| 2026-11-26 | Week 3 (Phase 7) code — `cascade.py` (student levels 🟢 < 0.35 ≤ 🟡 < threshold 0.73 ≤ 🔴; teacher only for 🟡: one attempt (`llm.complete_json(retries=0)`), 20 s wait in a worker thread, 10 requests/day in `data/cache/teacher_budget.json`, own cache `data/cache/live_teacher.jsonl`; never raises), `explain.py` (level, 2–4 reasons, advice per signal at every level, soft prepayment advice, disclaimer), `check.py` CLI and `web.py` (stdlib http.server on 127.0.0.1) — offline by default, `bot/` (aiogram 3 long polling, `/start` `/help` `/stats`, 👍/👎 buttons, pending line then edit with the teacher answer, SQLite `data/bot.db` with masked text and no user data). `docs/DEMO.md`, draft `docs/demo_ads.txt`. CI installs `bot`. 306 tests pass. Bot not yet started with the real token, no real teacher request made | done |
+
+Smoke test 2026-11-26 on 6 new texts (written by Claude, not in data): 3 of 6 right. Misses: honest
+daily rent from an ИП with 50 % booking -> 🔴 0.91; iPhone "OLX delivery link, enter card data" -> 🟢
+0.06 (`fake_delivery` is in only 2 training ads, weight +0.49; the only strong learned signal is
+`prepayment` +3.13); Kazakh "алдын ала 30 % төлем" -> 🟢 0.01 (the kk prepayment regex does not allow
+a number inside the phrase). Proposed to the owner: a rule floor for known schemes + the kk regex fix.
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 

@@ -66,6 +66,16 @@ def test_gives_up_after_max_retries_with_the_right_error(monkeypatch, status, er
         llm.complete_json("p", Answer, sleep=lambda s: None, log=lambda m: None)
 
 
+@pytest.mark.parametrize("status, error_class", [(429, llm.QuotaError), (503, llm.OverloadedError)])
+def test_retries_zero_makes_one_attempt_without_waiting(monkeypatch, status, error_class):
+    provider = fake_provider([llm.RetryableError("busy", status=status), '{"value": 1}'])
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", provider)
+    waits = []
+    with pytest.raises(error_class):
+        llm.complete_json("p", Answer, sleep=waits.append, retries=0)
+    assert len(provider.calls) == 1 and waits == []
+
+
 def test_permanent_error_is_not_retried(monkeypatch):
     provider = fake_provider([llm.LLMError("ошибка 400: API key not valid")])
     monkeypatch.setitem(llm.PROVIDERS, "gemini", provider)

@@ -155,27 +155,29 @@ def complete_json(
     schema: type[BaseModel],
     sleep: Callable[[float], None] = time.sleep,
     log: Callable[[str], None] = print,
+    retries: int = MAX_RETRIES,
 ) -> dict:
     """Send the prompt, get back a dict shaped like `schema`.
 
     The answer is parsed as JSON but NOT validated here: the caller validates it
     piece by piece, so one broken item does not throw away a whole batch.
     `sleep` and `log` are parameters so tests can run without waiting.
+    `retries=0` is for the bot: a user is waiting, so one attempt and no backoff pauses.
     """
     provider, model = get_settings()
     call = PROVIDERS[provider]
-    for attempt in range(MAX_RETRIES + 1):
+    for attempt in range(retries + 1):
         try:
             text = call(prompt, schema, model)
             break
         except RetryableError as error:
-            if attempt == MAX_RETRIES:
-                message = f"{error} — не помогли {MAX_RETRIES} повтора"
+            if attempt == retries:
+                message = f"{error} — не помогли {retries} повтора" if retries else str(error)
                 if error.status == 429:
                     raise QuotaError(message) from error
                 raise OverloadedError(message) from error
             wait = FIRST_WAIT_SECONDS * 2**attempt
-            log(f"  {error}; жду {wait} с и пробую снова ({attempt + 1}/{MAX_RETRIES})")
+            log(f"  {error}; жду {wait} с и пробую снова ({attempt + 1}/{retries})")
             sleep(wait)
     try:
         return json.loads(text)

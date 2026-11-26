@@ -11,7 +11,8 @@ The idea is knowledge distillation: a large LLM (the *teacher*) labels ads, a sm
 (the *student*) learns from those labels, and at inference the student asks the teacher only when
 it is unsure.
 
-**Status:** work in progress — a baseline student prototype exists, the Telegram bot is next.
+**Status:** work in progress — a baseline student, the student → teacher cascade, a Telegram bot
+and an offline demo (terminal + local web page) exist as a prototype.
 See [docs/PLAN.md](docs/PLAN.md) (in Russian) for the roadmap.
 
 ## Current results (baseline prototype, 2026-11-26)
@@ -37,9 +38,13 @@ human-labelled ads (the teacher's labels are not ready yet: free-tier quota). Fu
 ## Development
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,ml,bot]"
 ruff check src tests
 pytest -q
+python -m aldau.train_baseline        # train the student -> models/baseline.joblib
+python -m aldau.check                 # check an ad offline in the terminal
+python -m aldau.web                   # the same on a local page, http://127.0.0.1:8000
+python -m aldau.bot                   # Telegram bot (needs TELEGRAM_BOT_TOKEN in .env)
 ```
 
 ## Data and known limitations

@@ -14,7 +14,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev,photos,ml]"
+        run: pip install -e ".[dev,photos,ml,bot]"
       - name: Lint
         run: ruff check src tests
       - name: Tests
