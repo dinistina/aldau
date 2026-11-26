@@ -221,3 +221,20 @@ def test_at_most_four_reasons():
     text = format_answer(CheckResult(grey().ad, 0.9, "red", signals))
     reasons_part = text.split("Почему:")[1].split("Что проверить:")[0]
     assert reasons_part.count("•") == 4
+
+
+def test_scheme_signs_come_before_weak_hints():
+    # the scam rent from the 2026-11-27 check: "на вахте, показать не могу" was cut off
+    # when reasons followed the regex order
+    signals = ["prepayment", "messenger", "no_calls", "pressure", "remote_seller"]
+    text = format_answer(CheckResult(grey().ad, 1.0, "red", signals))
+    reasons_part = text.split("Почему:")[1].split("Что проверить:")[0]
+    lines = [line for line in reasons_part.splitlines() if line.startswith("•")]
+    assert lines == [
+        "• продавец не может встретиться или показать товар",
+        "• просят предоплату, задаток или бронь",
+        "• давление на покупателя: «желающих много», «осталось мало»",
+        "• продавец не отвечает на звонки",
+    ]
+    assert "мессенджер" not in reasons_part
+    assert text.index("Не платите за то, что не видели") < text.index("Бронь по предоплате")

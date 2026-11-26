@@ -20,10 +20,32 @@ PENDING = "⏳ Идёт углублённая проверка, ответ об
 MAX_REASONS = 4
 MAX_ADVICE = 3
 
+# Signals from the most to the least important (owner's decision 2026-11-27): signs of a
+# known scheme first, then weak hints (messenger, urgency, a link). Reasons and advice are
+# both sorted by this list, so the cut to 4 reasons / 3 tips drops the weakest hints,
+# not "продавец не может показать товар".
+SIGNAL_IMPORTANCE = [
+    # signs of a scheme
+    "fake_delivery",
+    "remote_seller",
+    "prepayment",
+    "from_abroad",
+    "sends_documents",
+    "pressure",
+    "deposit",
+    # weak hints: honest sellers write them too
+    "no_calls",
+    "messenger",
+    "urgency",
+    "says_cheap",
+    "has_link",
+    "has_phone",
+]
+
 # What to check, per signal. "prepayment" is worded softly on purpose: booking by
 # prepayment is also normal for honest daily rents and dealers (all 8 false alarms of the
 # demo model on gold were such ads), so the advice says how to check, not "it is a scam".
-ADVICE_RU = {
+ADVICE_RU = {  # order does not matter: tips follow SIGNAL_IMPORTANCE
     "fake_delivery": "Никогда не вводите данные карты по ссылке от продавца — оплачивайте только "
     "в официальном приложении площадки.",
     "prepayment": "Бронь по предоплате бывает и у честных продавцов. Перед оплатой проверьте "
@@ -50,12 +72,17 @@ def percent(risk: float) -> str:
     return f"{round(risk * 100)} %"
 
 
+def by_importance(signals: list[str]) -> list[str]:
+    """Known signals sorted by SIGNAL_IMPORTANCE (signals without a description are dropped)."""
+    return [s for s in SIGNAL_IMPORTANCE if s in signals and s in SIGNAL_DESCRIPTIONS_RU]
+
+
 def reasons(result: CheckResult) -> list[str]:
     """2–4 short reasons: the teacher's explanation first (if any), then the regex signals."""
     items = []
     if result.teacher and result.teacher.explanation_ru:
         items.append(f"углублённая проверка: {result.teacher.explanation_ru.strip()}")
-    items += [SIGNAL_DESCRIPTIONS_RU[s] for s in result.signals if s in SIGNAL_DESCRIPTIONS_RU]
+    items += [SIGNAL_DESCRIPTIONS_RU[s] for s in by_importance(result.signals)]
     if not items:
         items.append(REASON_NOTHING if result.level == "green" else REASON_TEXT_ONLY)
     return items[:MAX_REASONS]
@@ -65,9 +92,10 @@ def advice(result: CheckResult) -> list[str]:
     """Tips for the signals found — at every level: even when the model says 🟢, a found
     "оплата по ссылке" deserves its warning (the model is small and can miss a scheme)."""
     tips = []
-    for signal in ADVICE_RU:  # ADVICE_RU is ordered from the most to the least important
-        if signal in result.signals and ADVICE_RU[signal] not in tips:
-            tips.append(ADVICE_RU[signal])
+    for signal in by_importance(result.signals):
+        tip = ADVICE_RU.get(signal)
+        if tip and tip not in tips:
+            tips.append(tip)
     if tips:
         return tips[:MAX_ADVICE]
     return [ADVICE_GREEN if result.level == "green" else ADVICE_DEFAULT]
