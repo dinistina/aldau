@@ -280,6 +280,8 @@ scam 🟡/🔴 0.92 -> 0.97 (34 -> 36 of 37; real 8 of 9 both ways), legit false
 
 | 2026-11-27 | Pasted ads are split like `collect import` (first line = title, rest = text; before, the first line was also kept in the text: the model saw it twice and `bot.db` repeated it; gold metrics unaffected). `docs/demo_ads.txt`: 9 new ads by Claude (3 honest, 3 scams: rent, delivery phishing, kk car from abroad; 2 hard: ИП booking, long-term deposit; 2 kk), max Jaccard 0.26 to all collected ads; 8 of 9 right, ИП booking 🔴 (known), PS5 «срочно» 🟢 11 % (debatable), none 🟡. `docs/DEMO.md` rewritten: one-command start, 5-minute scenario, offline fallback. Bot starts from a fresh process in both modes (polling OK; no message sent, no teacher request made). 320 tests pass | done |
 
+| 2026-11-27 | Demo ad №10 (Samsung, seller «в командировке», courier with payment on receipt) — chosen to land in 🟡 (owner's request, labelled in DEMO.md as «показ каскада»; no live non-gold grey ad existed: 22 of 25 unlabelled live ads are in gold, the other 3 are 🟢). First real live-teacher request (owner allowed 1–2; 1 used) through the bot handler: 🟡 + «⏳» shown, after 20 s the message was edited to the timeout note (teacher slower than 20 s); the request finished in the background and was cached; rerun from cache: teacher legit 0.20 -> 🟢 with its explanation. The 20 s timeout is tight for live 🟡 ads | done |
+
 Gold is NOT frozen yet (owner, 2026-11-23): 15–20 real scam texts from victims' screenshots will be
 added via a new inbox and labelled with `--only-inbox`; then the owner rereads and freezes.
 
