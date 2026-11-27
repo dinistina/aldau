@@ -39,9 +39,16 @@ def predict_ad_from_text(
 ) -> Ad:
     """Turn a pasted ad into an Ad. Personal data is masked, exactly as for training data.
 
+    If no title is given, the text is split exactly as in `collect import` (the training
+    data): the first line is the title, the rest is the text, and a one-line ad uses the
+    title as its text. Before 2026-11-27 the first line stayed in the text as well, so the
+    model saw it twice — not the way it was trained.
+
     If no price is given, the first price written in the text is used ("25 000 тг").
     """
-    title = title or text.strip().split("\n", 1)[0][:100]
+    if not title:
+        title, _, rest = text.strip().partition("\n")
+        text = rest.strip() or title
     if price_kzt is None:
         prices = extract_prices(text)
         price_kzt = prices[0] if prices else None

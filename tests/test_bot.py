@@ -85,6 +85,14 @@ def test_storage_logs_masked_text_feedback_and_stats():
     assert (s["total"], s["red"], s["green"], s["right"], s["wrong"]) == (2, 1, 1, 1, 0)
 
 
+def test_storage_keeps_the_text_as_sent_without_repeating_the_title(app):
+    sent = ["Продаю iPhone 14\nСостояние хорошее, 135 000 тг", "Продаю диван, 60 000 тг"]
+    for text in sent:
+        storage.log_check(app.conn, cascade.check_student(app.model, text))
+    stored = [row[0] for row in app.conn.execute("SELECT ad_text FROM checks ORDER BY id")]
+    assert stored == sent
+
+
 def test_storage_has_no_user_columns():
     conn = storage.connect(":memory:")
     columns = [row[1] for row in conn.execute("PRAGMA table_info(checks)")]

@@ -41,6 +41,13 @@ def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def full_text(result: CheckResult) -> str:
+    """The ad as the person sent it (masked): title line + text, without repeating the
+    title of a one-line ad (there the title is also used as the text)."""
+    ad = result.ad
+    return ad.text if ad.text == ad.title else ad.title + "\n" + ad.text
+
+
 def log_check(conn: sqlite3.Connection, result: CheckResult) -> int:
     """Save one check, return its row id (used in the feedback buttons)."""
     cursor = conn.execute(
@@ -49,7 +56,7 @@ def log_check(conn: sqlite3.Connection, result: CheckResult) -> int:
         (
             datetime.now().isoformat(timespec="seconds"),
             result.ad.id,
-            result.ad.title + "\n" + result.ad.text,
+            full_text(result),
             result.ad.price_kzt,
             result.student_risk,
             result.teacher.risk_score if result.teacher else None,

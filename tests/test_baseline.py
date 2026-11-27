@@ -186,3 +186,13 @@ def test_predict_text_masks_pii_and_returns_signals():
     assert "prepayment" in result.signals and "remote_seller" in result.signals
     assert "has_phone" not in result.signals
     assert predict(model, toy_data()[0]).risk == pytest.approx(model.risk([toy_data()[0]])[0])
+
+
+def test_pasted_ad_is_split_like_the_import():
+    from aldau.student import predict_ad_from_text
+
+    ad = predict_ad_from_text("Продаю велосипед\nПочти новый.\nЗвоните 87011234567")
+    assert ad.title == "Продаю велосипед"
+    assert ad.text == "Почти новый.\nЗвоните [PHONE]"
+    one_line = predict_ad_from_text("Продаю велосипед, 50 000 тг")
+    assert one_line.title == one_line.text == "Продаю велосипед, 50 000 тг"
